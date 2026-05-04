@@ -2,6 +2,7 @@ import { Controller, Get, Query } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CompararCandidatosUseCase } from '../../application/use-cases/comparar-candidatos.use-case';
 import { CompararCorporacionesUseCase } from '../../application/use-cases/comparar-corporaciones.use-case';
+import { CompararTerritorialUseCase } from '../../application/use-cases/comparar-territorial.use-case';
 import { ObtenerRankingCandidatosUseCase } from '../../application/use-cases/obtener-ranking-candidatos.use-case';
 import { ObtenerRankingPartidosUseCase } from '../../application/use-cases/obtener-ranking-partidos.use-case';
 import { ObtenerResumenPorCorporacionUseCase } from '../../application/use-cases/obtener-resumen-por-corporacion.use-case';
@@ -11,10 +12,12 @@ import { ObtenerVotosPorMunicipioUseCase } from '../../application/use-cases/obt
 import { ObtenerVotosPorPuestoUseCase } from '../../application/use-cases/obtener-votos-por-puesto.use-case';
 import { ComparativoCandidatoResponseDto } from './dtos/comparativo-candidato.response.dto';
 import { ComparativoCorporacionResponseDto } from './dtos/comparativo-corporacion.response.dto';
+import { ComparativoTerritorialResponseDto } from './dtos/comparativo-territorial.response.dto';
 import {
   FiltroComparativoCandidatoQueryDto,
   FiltroComparativoCorporacionQueryDto,
 } from './dtos/filtro-comparativo.query.dto';
+import { FiltroComparativoTerritorialQueryDto } from './dtos/filtro-comparativo-territorial.query.dto';
 import {
   FiltroElectoralConLimiteQueryDto,
   FiltroElectoralQueryDto,
@@ -40,6 +43,7 @@ export class ElectoralController {
     private readonly obtenerResumenCorp: ObtenerResumenPorCorporacionUseCase,
     private readonly compararCorporaciones: CompararCorporacionesUseCase,
     private readonly compararCandidatos: CompararCandidatosUseCase,
+    private readonly compararTerritorial: CompararTerritorialUseCase,
   ) {}
 
   @Get('resumen')
@@ -133,5 +137,18 @@ export class ElectoralController {
   ): Promise<ComparativoCandidatoResponseDto[]> {
     const result = await this.compararCandidatos.execute(q.toDomain());
     return result.map(ComparativoCandidatoResponseDto.fromDomain);
+  }
+
+  @Get('comparativo/territorial')
+  @ApiOperation({
+    summary:
+      'Compara pairwise dos partidos o candidatos con desglose territorial. Granularidad: depto sin filtro, muni con depto, puesto con muni.',
+  })
+  @ApiOkResponse({ type: ComparativoTerritorialResponseDto })
+  async getComparativoTerritorial(
+    @Query() q: FiltroComparativoTerritorialQueryDto,
+  ): Promise<ComparativoTerritorialResponseDto> {
+    const result = await this.compararTerritorial.execute(q.toDomain());
+    return ComparativoTerritorialResponseDto.fromDomain(result);
   }
 }

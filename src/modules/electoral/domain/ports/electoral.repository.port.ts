@@ -1,5 +1,6 @@
 import { ComparativoCandidato } from '../entities/comparativo-candidato.entity';
 import { ComparativoCorporacion } from '../entities/comparativo-corporacion.entity';
+import { ComparativoTerritorialResultado } from '../entities/comparativo-territorial.entity';
 import { RankingCandidato } from '../entities/ranking-candidato.entity';
 import { RankingPartido } from '../entities/ranking-partido.entity';
 import { ResumenCorporacion } from '../entities/resumen-corporacion.entity';
@@ -11,6 +12,7 @@ import {
   FiltroComparativoCandidato,
   FiltroComparativoCorporacion,
 } from '../value-objects/filtro-comparativo.vo';
+import { FiltroComparativoTerritorial } from '../value-objects/filtro-comparativo-territorial.vo';
 import { FiltroElectoral } from '../value-objects/filtro-electoral.vo';
 
 export const ELECTORAL_REPOSITORY = Symbol('ELECTORAL_REPOSITORY');
@@ -35,4 +37,8 @@ export interface ElectoralRepositoryPort {
   ): Promise<ComparativoCorporacion[]>;
 
   compararCandidatos(filtro: FiltroComparativoCandidato): Promise<ComparativoCandidato[]>;
+
+  compararTerritorial(
+    filtro: FiltroComparativoTerritorial,
+  ): Promise<ComparativoTerritorialResultado>;
 }

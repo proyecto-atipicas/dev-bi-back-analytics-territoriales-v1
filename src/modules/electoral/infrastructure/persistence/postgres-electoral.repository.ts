@@ -3,6 +3,13 @@ import { DatabasePort } from '../../../../shared/database/database.port';
 import { DATABASE_PORT } from '../../../../shared/database/database.tokens';
 import { ComparativoCandidato } from '../../domain/entities/comparativo-candidato.entity';
 import { ComparativoCorporacion } from '../../domain/entities/comparativo-corporacion.entity';
+import {
+  ComparativoTerritorialResultado,
+  GanadorComparativo,
+  ItemComparativoTerritorial,
+  NivelTerritorial,
+  TerritorioComparativo,
+} from '../../domain/entities/comparativo-territorial.entity';
 import { RankingCandidato } from '../../domain/entities/ranking-candidato.entity';
 import { RankingPartido } from '../../domain/entities/ranking-partido.entity';
 import { ResumenCorporacion } from '../../domain/entities/resumen-corporacion.entity';
@@ -15,6 +22,7 @@ import {
   FiltroComparativoCandidato,
   FiltroComparativoCorporacion,
 } from '../../domain/value-objects/filtro-comparativo.vo';
+import { FiltroComparativoTerritorial } from '../../domain/value-objects/filtro-comparativo-territorial.vo';
 import { FiltroElectoral } from '../../domain/value-objects/filtro-electoral.vo';
 import { buildFiltroElectoralSql } from './filtro-electoral.sql';
 
@@ -90,6 +98,23 @@ interface ComparativoCandidatoRow {
   nombre_corporacion: string | null;
   total_votos: string | null;
   total_general: string | null;
+}
+
+interface ItemMetaRow {
+  codigo: string;
+  nombre: string | null;
+  codigo_partido: string | null;
+  nombre_partido: string | null;
+}
+
+interface TerritorioComparativoRow {
+  codigo_departamento: string;
+  codigo_municipio: string | null;
+  codigo_puesto: string | null;
+  nombre: string | null;
+  total_a: string | null;
+  total_b: string | null;
+  total_eleccion: string | null;
 }
 
 const toInt = (v: string | null | undefined): number => (v == null ? 0 : parseInt(v, 10));
@@ -395,6 +420,195 @@ export class PostgresElectoralRepository implements ElectoralRepositoryPort {
         Number(participacionPct.toFixed(2)),
       );
     });
+  }
+
+  async compararTerritorial(
+    filtro: FiltroComparativoTerritorial,
+  ): Promise<ComparativoTerritorialResultado> {
+    const codigoCol = filtro.tipo === 'partido' ? 'codigo_partido' : 'codigo_candidato';
+    const nombreCol = filtro.tipo === 'partido' ? 'nombre_partido' : 'nombre_candidato';
+
+    // 1) Metadatos de los ítems (nombre + partido asociado para candidatos).
+    const metaParams: unknown[] = [filtro.codigoA, filtro.codigoB, filtro.codigoCorporacion];
+    const metaSql = `
+      SELECT
+        ${codigoCol}              AS codigo,
+        MAX(${nombreCol})         AS nombre,
+        MAX(codigo_partido)       AS codigo_partido,
+        MAX(nombre_partido)       AS nombre_partido
+      FROM data_election
+      WHERE ${codigoCol} IN ($1, $2)
+        AND codigo_corporacion = $3
+        AND ${codigoCol} IS NOT NULL
+      GROUP BY ${codigoCol}
+    `;
+    const metaRows = await this.db.query<ItemMetaRow>(metaSql, metaParams);
+    const metaMap = new Map<string, ItemMetaRow>();
+    for (const r of metaRows) metaMap.set(r.codigo, r);
+
+    // 2) Resultado por territorio + total elección. Granularidad por filtros.
+    const params: unknown[] = [filtro.codigoA, filtro.codigoB, filtro.codigoCorporacion];
+    const conds: string[] = [`e.codigo_corporacion = $3`];
+    if (filtro.codigoDepartamento) {
+      params.push(filtro.codigoDepartamento);
+      conds.push(`e.codigo_departamento = $${params.length}`);
+    }
+    if (filtro.codigoMunicipio) {
+      params.push(filtro.codigoMunicipio);
+      conds.push(`e.codigo_municipio = $${params.length}`);
+    }
+
+    let nivel: NivelTerritorial;
+    let groupCols: string;
+    let selectCols: string;
+    let nombreExpr: string;
+    let joinClause = '';
+
+    if (filtro.codigoMunicipio) {
+      // Drill-down a puestos
+      nivel = 'puesto';
+      groupCols = 'e.codigo_departamento, e.codigo_municipio, e.codigo_puesto';
+      selectCols = `
+        e.codigo_departamento,
+        e.codigo_municipio,
+        e.codigo_puesto,
+        COALESCE(MAX(p.nombre_puesto), e.codigo_puesto) AS nombre
+      `;
+      nombreExpr = '';
+      joinClause = `
+        LEFT JOIN (
+          SELECT codigo_departamento, codigo_municipio, codigo_puesto,
+                 MAX(nombre_puesto) AS nombre_puesto
+          FROM dim_divipole
+          WHERE codigo_puesto IS NOT NULL
+          GROUP BY codigo_departamento, codigo_municipio, codigo_puesto
+        ) p
+          ON p.codigo_departamento = e.codigo_departamento
+         AND p.codigo_municipio    = e.codigo_municipio
+         AND p.codigo_puesto       = e.codigo_puesto
+      `;
+      conds.push('e.codigo_puesto IS NOT NULL');
+    } else if (filtro.codigoDepartamento) {
+      // Drill-down a municipios
+      nivel = 'municipio';
+      groupCols = 'e.codigo_departamento, e.codigo_municipio';
+      selectCols = `
+        e.codigo_departamento,
+        e.codigo_municipio,
+        NULL::text AS codigo_puesto,
+        COALESCE(MAX(m.nombre_municipio), e.codigo_municipio) AS nombre
+      `;
+      nombreExpr = '';
+      joinClause = `
+        LEFT JOIN (
+          SELECT codigo_departamento, codigo_municipio,
+                 MAX(nombre_municipio) AS nombre_municipio
+          FROM dim_divipole
+          WHERE codigo_municipio IS NOT NULL
+          GROUP BY codigo_departamento, codigo_municipio
+        ) m
+          ON m.codigo_departamento = e.codigo_departamento
+         AND m.codigo_municipio    = e.codigo_municipio
+      `;
+    } else {
+      // Vista nacional → por departamento
+      nivel = 'departamento';
+      groupCols = 'e.codigo_departamento';
+      selectCols = `
+        e.codigo_departamento,
+        NULL::text AS codigo_municipio,
+        NULL::text AS codigo_puesto,
+        COALESCE(MAX(d.nombre_departamento), e.codigo_departamento) AS nombre
+      `;
+      nombreExpr = '';
+      joinClause = `
+        LEFT JOIN (
+          SELECT codigo_departamento, MAX(nombre_departamento) AS nombre_departamento
+          FROM dim_divipole
+          WHERE codigo_departamento IS NOT NULL
+          GROUP BY codigo_departamento
+        ) d ON d.codigo_departamento = e.codigo_departamento
+      `;
+    }
+    void nombreExpr;
+
+    const sql = `
+      SELECT
+        ${selectCols},
+        COALESCE(SUM(CASE WHEN e.${codigoCol} = $1 THEN e.total_votos END), 0) AS total_a,
+        COALESCE(SUM(CASE WHEN e.${codigoCol} = $2 THEN e.total_votos END), 0) AS total_b,
+        COALESCE(SUM(e.total_votos), 0) AS total_eleccion
+      FROM data_election e
+      ${joinClause}
+      WHERE ${conds.join(' AND ')}
+      GROUP BY ${groupCols}
+      HAVING COALESCE(SUM(CASE WHEN e.${codigoCol} IN ($1, $2) THEN e.total_votos END), 0) > 0
+      ORDER BY total_eleccion DESC
+    `;
+
+    const rows = await this.db.query<TerritorioComparativoRow>(sql, params);
+
+    const territorios: TerritorioComparativo[] = rows.map((r) => {
+      const totalA = toNum(r.total_a);
+      const totalB = toNum(r.total_b);
+      const totalEleccion = toNum(r.total_eleccion);
+      const diferencia = Math.abs(totalA - totalB);
+      let ganador: GanadorComparativo;
+      if (totalA > totalB) ganador = 'A';
+      else if (totalB > totalA) ganador = 'B';
+      else ganador = 'EMPATE';
+      const diferenciaPct = totalEleccion > 0 ? (diferencia / totalEleccion) * 100 : 0;
+      return new TerritorioComparativo(
+        r.codigo_departamento,
+        r.codigo_municipio,
+        r.codigo_puesto,
+        r.nombre ?? '',
+        totalA,
+        totalB,
+        totalEleccion,
+        ganador,
+        diferencia,
+        Number(diferenciaPct.toFixed(2)),
+      );
+    });
+
+    // Totales agregados a partir de los territorios.
+    const totalA = territorios.reduce((s, t) => s + t.totalA, 0);
+    const totalB = territorios.reduce((s, t) => s + t.totalB, 0);
+    const totalEleccion = territorios.reduce((s, t) => s + t.totalEleccion, 0);
+    const totalTerritoriosA = territorios.filter((t) => t.totalA > 0).length;
+    const totalTerritoriosB = territorios.filter((t) => t.totalB > 0).length;
+
+    const buildItem = (
+      codigo: string,
+      total: number,
+      totalTerritorios: number,
+    ): ItemComparativoTerritorial => {
+      const meta = metaMap.get(codigo);
+      const nombre = meta?.nombre ?? codigo;
+      const participacionPct = totalEleccion > 0 ? (total / totalEleccion) * 100 : 0;
+      // Para tipo=partido, el codigo_partido del meta es el mismo que el código del ítem;
+      // para candidato, es el partido al que pertenece.
+      const codigoPartido = filtro.tipo === 'partido' ? codigo : meta?.codigo_partido ?? null;
+      const nombrePartido = filtro.tipo === 'partido' ? nombre : meta?.nombre_partido ?? null;
+      return new ItemComparativoTerritorial(
+        codigo,
+        nombre,
+        nombrePartido,
+        codigoPartido,
+        total,
+        totalTerritorios,
+        Number(participacionPct.toFixed(2)),
+      );
+    };
+
+    return new ComparativoTerritorialResultado(
+      nivel,
+      buildItem(filtro.codigoA, totalA, totalTerritoriosA),
+      buildItem(filtro.codigoB, totalB, totalTerritoriosB),
+      totalEleccion,
+      territorios,
+    );
   }
 
   async obtenerResumenPorCorporacion(filtro: FiltroElectoral): Promise<ResumenCorporacion[]> {
