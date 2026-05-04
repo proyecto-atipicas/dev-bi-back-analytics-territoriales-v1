@@ -1,0 +1,121 @@
+import { Controller, Get, Query } from '@nestjs/common';
+import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { CompararCandidatosUseCase } from '../../application/use-cases/comparar-candidatos.use-case';
+import { CompararCorporacionesUseCase } from '../../application/use-cases/comparar-corporaciones.use-case';
+import { ObtenerRankingCandidatosUseCase } from '../../application/use-cases/obtener-ranking-candidatos.use-case';
+import { ObtenerRankingPartidosUseCase } from '../../application/use-cases/obtener-ranking-partidos.use-case';
+import { ObtenerResumenPorCorporacionUseCase } from '../../application/use-cases/obtener-resumen-por-corporacion.use-case';
+import { ObtenerResumenUseCase } from '../../application/use-cases/obtener-resumen.use-case';
+import { ObtenerVotosPorDepartamentoUseCase } from '../../application/use-cases/obtener-votos-por-departamento.use-case';
+import { ObtenerVotosPorMunicipioUseCase } from '../../application/use-cases/obtener-votos-por-municipio.use-case';
+import { ComparativoCandidatoResponseDto } from './dtos/comparativo-candidato.response.dto';
+import { ComparativoCorporacionResponseDto } from './dtos/comparativo-corporacion.response.dto';
+import {
+  FiltroComparativoCandidatoQueryDto,
+  FiltroComparativoCorporacionQueryDto,
+} from './dtos/filtro-comparativo.query.dto';
+import {
+  FiltroElectoralConLimiteQueryDto,
+  FiltroElectoralQueryDto,
+} from './dtos/filtro-electoral.query.dto';
+import { RankingCandidatoResponseDto } from './dtos/ranking-candidato.response.dto';
+import { RankingPartidoResponseDto } from './dtos/ranking-partido.response.dto';
+import { ResumenCorporacionResponseDto } from './dtos/resumen-corporacion.response.dto';
+import { ResumenElectoralResponseDto } from './dtos/resumen-electoral.response.dto';
+import { VotosDepartamentoResponseDto } from './dtos/votos-departamento.response.dto';
+import { VotosMunicipioResponseDto } from './dtos/votos-municipio.response.dto';
+
+@ApiTags('Electoral')
+@Controller('electoral')
+export class ElectoralController {
+  constructor(
+    private readonly obtenerResumen: ObtenerResumenUseCase,
+    private readonly obtenerVotosDep: ObtenerVotosPorDepartamentoUseCase,
+    private readonly obtenerVotosMun: ObtenerVotosPorMunicipioUseCase,
+    private readonly obtenerRankingPartidos: ObtenerRankingPartidosUseCase,
+    private readonly obtenerRankingCandidatos: ObtenerRankingCandidatosUseCase,
+    private readonly obtenerResumenCorp: ObtenerResumenPorCorporacionUseCase,
+    private readonly compararCorporaciones: CompararCorporacionesUseCase,
+    private readonly compararCandidatos: CompararCandidatosUseCase,
+  ) {}
+
+  @Get('resumen')
+  @ApiOperation({ summary: 'Totales agregados según filtros (votos, candidatos, partidos…)' })
+  @ApiOkResponse({ type: ResumenElectoralResponseDto })
+  async getResumen(@Query() q: FiltroElectoralQueryDto): Promise<ResumenElectoralResponseDto> {
+    const result = await this.obtenerResumen.execute(q.toDomain());
+    return ResumenElectoralResponseDto.fromDomain(result);
+  }
+
+  @Get('por-departamento')
+  @ApiOperation({ summary: 'Total de votos por departamento (alimenta el mapa de Colombia)' })
+  @ApiOkResponse({ type: VotosDepartamentoResponseDto, isArray: true })
+  async getPorDepartamento(
+    @Query() q: FiltroElectoralQueryDto,
+  ): Promise<VotosDepartamentoResponseDto[]> {
+    const result = await this.obtenerVotosDep.execute(q.toDomain());
+    return result.map(VotosDepartamentoResponseDto.fromDomain);
+  }
+
+  @Get('por-municipio')
+  @ApiOperation({ summary: 'Total de votos por municipio (requiere codigoDepartamento)' })
+  @ApiOkResponse({ type: VotosMunicipioResponseDto, isArray: true })
+  async getPorMunicipio(
+    @Query() q: FiltroElectoralQueryDto,
+  ): Promise<VotosMunicipioResponseDto[]> {
+    const result = await this.obtenerVotosMun.execute(q.toDomain());
+    return result.map(VotosMunicipioResponseDto.fromDomain);
+  }
+
+  @Get('ranking-partidos')
+  @ApiOperation({ summary: 'Top de partidos por votos' })
+  @ApiOkResponse({ type: RankingPartidoResponseDto, isArray: true })
+  async getRankingPartidos(
+    @Query() q: FiltroElectoralConLimiteQueryDto,
+  ): Promise<RankingPartidoResponseDto[]> {
+    const result = await this.obtenerRankingPartidos.execute(q.toDomain(), q.limite ?? 20);
+    return result.map(RankingPartidoResponseDto.fromDomain);
+  }
+
+  @Get('ranking-candidatos')
+  @ApiOperation({ summary: 'Top de candidatos por votos' })
+  @ApiOkResponse({ type: RankingCandidatoResponseDto, isArray: true })
+  async getRankingCandidatos(
+    @Query() q: FiltroElectoralConLimiteQueryDto,
+  ): Promise<RankingCandidatoResponseDto[]> {
+    const result = await this.obtenerRankingCandidatos.execute(q.toDomain(), q.limite ?? 50);
+    return result.map(RankingCandidatoResponseDto.fromDomain);
+  }
+
+  @Get('resumen-corporaciones')
+  @ApiOperation({ summary: 'Tarjetas resumen por corporación (votos, candidatos, participación)' })
+  @ApiOkResponse({ type: ResumenCorporacionResponseDto, isArray: true })
+  async getResumenCorp(
+    @Query() q: FiltroElectoralQueryDto,
+  ): Promise<ResumenCorporacionResponseDto[]> {
+    const result = await this.obtenerResumenCorp.execute(q.toDomain());
+    return result.map(ResumenCorporacionResponseDto.fromDomain);
+  }
+
+  @Get('comparativo/corporaciones')
+  @ApiOperation({
+    summary: 'Compara dos o más corporaciones por votos, candidatos y partidos',
+  })
+  @ApiOkResponse({ type: ComparativoCorporacionResponseDto, isArray: true })
+  async getComparativoCorporaciones(
+    @Query() q: FiltroComparativoCorporacionQueryDto,
+  ): Promise<ComparativoCorporacionResponseDto[]> {
+    const result = await this.compararCorporaciones.execute(q.toDomain());
+    return result.map(ComparativoCorporacionResponseDto.fromDomain);
+  }
+
+  @Get('comparativo/candidatos')
+  @ApiOperation({ summary: 'Compara dos o más candidatos por votos' })
+  @ApiOkResponse({ type: ComparativoCandidatoResponseDto, isArray: true })
+  async getComparativoCandidatos(
+    @Query() q: FiltroComparativoCandidatoQueryDto,
+  ): Promise<ComparativoCandidatoResponseDto[]> {
+    const result = await this.compararCandidatos.execute(q.toDomain());
+    return result.map(ComparativoCandidatoResponseDto.fromDomain);
+  }
+}
