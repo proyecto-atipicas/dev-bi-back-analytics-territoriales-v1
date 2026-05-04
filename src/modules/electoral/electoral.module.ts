@@ -7,6 +7,7 @@ import { ObtenerResumenPorCorporacionUseCase } from './application/use-cases/obt
 import { ObtenerResumenUseCase } from './application/use-cases/obtener-resumen.use-case';
 import { ObtenerVotosPorDepartamentoUseCase } from './application/use-cases/obtener-votos-por-departamento.use-case';
 import { ObtenerVotosPorMunicipioUseCase } from './application/use-cases/obtener-votos-por-municipio.use-case';
+import { ObtenerVotosPorPuestoUseCase } from './application/use-cases/obtener-votos-por-puesto.use-case';
 import { ELECTORAL_REPOSITORY } from './domain/ports/electoral.repository.port';
 import { ElectoralController } from './infrastructure/http/electoral.controller';
 import { PostgresElectoralRepository } from './infrastructure/persistence/postgres-electoral.repository';
@@ -17,6 +18,7 @@ import { PostgresElectoralRepository } from './infrastructure/persistence/postgr
     ObtenerResumenUseCase,
     ObtenerVotosPorDepartamentoUseCase,
     ObtenerVotosPorMunicipioUseCase,
+    ObtenerVotosPorPuestoUseCase,
     ObtenerRankingPartidosUseCase,
     ObtenerRankingCandidatosUseCase,
     ObtenerResumenPorCorporacionUseCase,

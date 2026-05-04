@@ -6,6 +6,7 @@ import { ResumenCorporacion } from '../entities/resumen-corporacion.entity';
 import { ResumenElectoral } from '../entities/resumen-electoral.entity';
 import { VotosPorDepartamento } from '../entities/votos-departamento.entity';
 import { VotosPorMunicipio } from '../entities/votos-municipio.entity';
+import { VotosPorPuesto } from '../entities/votos-puesto.entity';
 import {
   FiltroComparativoCandidato,
   FiltroComparativoCorporacion,
@@ -20,6 +21,8 @@ export interface ElectoralRepositoryPort {
   obtenerVotosPorDepartamento(filtro: FiltroElectoral): Promise<VotosPorDepartamento[]>;
 
   obtenerVotosPorMunicipio(filtro: FiltroElectoral): Promise<VotosPorMunicipio[]>;
+
+  obtenerVotosPorPuesto(filtro: FiltroElectoral): Promise<VotosPorPuesto[]>;
 
   obtenerRankingPartidos(filtro: FiltroElectoral, limite: number): Promise<RankingPartido[]>;
 

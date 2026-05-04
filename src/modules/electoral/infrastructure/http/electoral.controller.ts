@@ -8,6 +8,7 @@ import { ObtenerResumenPorCorporacionUseCase } from '../../application/use-cases
 import { ObtenerResumenUseCase } from '../../application/use-cases/obtener-resumen.use-case';
 import { ObtenerVotosPorDepartamentoUseCase } from '../../application/use-cases/obtener-votos-por-departamento.use-case';
 import { ObtenerVotosPorMunicipioUseCase } from '../../application/use-cases/obtener-votos-por-municipio.use-case';
+import { ObtenerVotosPorPuestoUseCase } from '../../application/use-cases/obtener-votos-por-puesto.use-case';
 import { ComparativoCandidatoResponseDto } from './dtos/comparativo-candidato.response.dto';
 import { ComparativoCorporacionResponseDto } from './dtos/comparativo-corporacion.response.dto';
 import {
@@ -24,6 +25,7 @@ import { ResumenCorporacionResponseDto } from './dtos/resumen-corporacion.respon
 import { ResumenElectoralResponseDto } from './dtos/resumen-electoral.response.dto';
 import { VotosDepartamentoResponseDto } from './dtos/votos-departamento.response.dto';
 import { VotosMunicipioResponseDto } from './dtos/votos-municipio.response.dto';
+import { VotosPuestoResponseDto } from './dtos/votos-puesto.response.dto';
 
 @ApiTags('Electoral')
 @Controller('electoral')
@@ -32,6 +34,7 @@ export class ElectoralController {
     private readonly obtenerResumen: ObtenerResumenUseCase,
     private readonly obtenerVotosDep: ObtenerVotosPorDepartamentoUseCase,
     private readonly obtenerVotosMun: ObtenerVotosPorMunicipioUseCase,
+    private readonly obtenerVotosPuesto: ObtenerVotosPorPuestoUseCase,
     private readonly obtenerRankingPartidos: ObtenerRankingPartidosUseCase,
     private readonly obtenerRankingCandidatos: ObtenerRankingCandidatosUseCase,
     private readonly obtenerResumenCorp: ObtenerResumenPorCorporacionUseCase,
@@ -65,6 +68,19 @@ export class ElectoralController {
   ): Promise<VotosMunicipioResponseDto[]> {
     const result = await this.obtenerVotosMun.execute(q.toDomain());
     return result.map(VotosMunicipioResponseDto.fromDomain);
+  }
+
+  @Get('por-puesto')
+  @ApiOperation({
+    summary:
+      'Total de votos por puesto de votación (requiere codigoDepartamento y codigoMunicipio)',
+  })
+  @ApiOkResponse({ type: VotosPuestoResponseDto, isArray: true })
+  async getPorPuesto(
+    @Query() q: FiltroElectoralQueryDto,
+  ): Promise<VotosPuestoResponseDto[]> {
+    const result = await this.obtenerVotosPuesto.execute(q.toDomain());
+    return result.map(VotosPuestoResponseDto.fromDomain);
   }
 
   @Get('ranking-partidos')

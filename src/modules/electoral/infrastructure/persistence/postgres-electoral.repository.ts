@@ -9,6 +9,7 @@ import { ResumenCorporacion } from '../../domain/entities/resumen-corporacion.en
 import { ResumenElectoral } from '../../domain/entities/resumen-electoral.entity';
 import { VotosPorDepartamento } from '../../domain/entities/votos-departamento.entity';
 import { VotosPorMunicipio } from '../../domain/entities/votos-municipio.entity';
+import { VotosPorPuesto } from '../../domain/entities/votos-puesto.entity';
 import { ElectoralRepositoryPort } from '../../domain/ports/electoral.repository.port';
 import {
   FiltroComparativoCandidato,
@@ -36,6 +37,14 @@ interface VotosMunicipioRow {
   codigo_departamento: string;
   codigo_municipio: string;
   nombre_municipio: string;
+  total_votos: string | null;
+}
+
+interface VotosPuestoRow {
+  codigo_departamento: string;
+  codigo_municipio: string;
+  codigo_puesto: string;
+  nombre_puesto: string;
   total_votos: string | null;
 }
 
@@ -169,6 +178,48 @@ export class PostgresElectoralRepository implements ElectoralRepositoryPort {
           r.codigo_departamento,
           r.codigo_municipio,
           r.nombre_municipio,
+          toNum(r.total_votos),
+        ),
+    );
+  }
+
+  async obtenerVotosPorPuesto(filtro: FiltroElectoral): Promise<VotosPorPuesto[]> {
+    const { whereClause, params } = buildFiltroElectoralSql(filtro, 'e');
+    const sql = `
+      WITH puesto AS (
+        SELECT
+          codigo_departamento,
+          codigo_municipio,
+          codigo_puesto,
+          MAX(nombre_puesto) AS nombre_puesto
+        FROM dim_divipole
+        WHERE codigo_puesto IS NOT NULL
+        GROUP BY codigo_departamento, codigo_municipio, codigo_puesto
+      )
+      SELECT
+        e.codigo_departamento,
+        e.codigo_municipio,
+        e.codigo_puesto,
+        COALESCE(puesto.nombre_puesto, e.codigo_puesto) AS nombre_puesto,
+        COALESCE(SUM(e.total_votos), 0) AS total_votos
+      FROM data_election e
+      LEFT JOIN puesto
+        ON puesto.codigo_departamento = e.codigo_departamento
+       AND puesto.codigo_municipio    = e.codigo_municipio
+       AND puesto.codigo_puesto       = e.codigo_puesto
+      WHERE ${whereClause}
+        AND e.codigo_puesto IS NOT NULL
+      GROUP BY e.codigo_departamento, e.codigo_municipio, e.codigo_puesto, puesto.nombre_puesto
+      ORDER BY total_votos DESC
+    `;
+    const rows = await this.db.query<VotosPuestoRow>(sql, params);
+    return rows.map(
+      (r) =>
+        new VotosPorPuesto(
+          r.codigo_departamento,
+          r.codigo_municipio,
+          r.codigo_puesto,
+          r.nombre_puesto,
           toNum(r.total_votos),
         ),
     );
