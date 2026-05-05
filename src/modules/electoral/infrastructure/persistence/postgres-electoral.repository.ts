@@ -1,8 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { DatabasePort } from '../../../../shared/database/database.port';
 import { DATABASE_PORT } from '../../../../shared/database/database.tokens';
-import { ComparativoCandidato } from '../../domain/entities/comparativo-candidato.entity';
-import { ComparativoCorporacion } from '../../domain/entities/comparativo-corporacion.entity';
 import {
   ComparativoTerritorialResultado,
   GanadorComparativo,
@@ -18,10 +16,6 @@ import { VotosPorDepartamento } from '../../domain/entities/votos-departamento.e
 import { VotosPorMunicipio } from '../../domain/entities/votos-municipio.entity';
 import { VotosPorPuesto } from '../../domain/entities/votos-puesto.entity';
 import { ElectoralRepositoryPort } from '../../domain/ports/electoral.repository.port';
-import {
-  FiltroComparativoCandidato,
-  FiltroComparativoCorporacion,
-} from '../../domain/value-objects/filtro-comparativo.vo';
 import { FiltroComparativoTerritorial } from '../../domain/value-objects/filtro-comparativo-territorial.vo';
 import { FiltroElectoral } from '../../domain/value-objects/filtro-electoral.vo';
 import { buildFiltroElectoralSql } from './filtro-electoral.sql';
@@ -78,26 +72,6 @@ interface ResumenCorporacionRow {
   total_votos: string | null;
   total_candidatos: string | null;
   total_partidos: string | null;
-  total_general: string | null;
-}
-
-interface ComparativoCorporacionRow {
-  codigo_corporacion: string;
-  nombre_corporacion: string;
-  total_votos: string | null;
-  total_candidatos: string | null;
-  total_partidos: string | null;
-  total_general: string | null;
-}
-
-interface ComparativoCandidatoRow {
-  codigo_candidato: string;
-  nombre_candidato: string;
-  codigo_partido: string | null;
-  nombre_partido: string | null;
-  codigo_corporacion: string | null;
-  nombre_corporacion: string | null;
-  total_votos: string | null;
   total_general: string | null;
 }
 
@@ -322,110 +296,6 @@ export class PostgresElectoralRepository implements ElectoralRepositoryPort {
           toNum(r.total_votos),
         ),
     );
-  }
-
-  async compararCorporaciones(
-    filtro: FiltroComparativoCorporacion,
-  ): Promise<ComparativoCorporacion[]> {
-    const params: unknown[] = [];
-    const placeholders = filtro.codigosCorporacion.map((c) => {
-      params.push(c);
-      return `$${params.length}`;
-    });
-
-    const conds: string[] = [`codigo_corporacion IN (${placeholders.join(', ')})`];
-
-    if (filtro.codigoDepartamento) {
-      params.push(filtro.codigoDepartamento);
-      conds.push(`codigo_departamento = $${params.length}`);
-    }
-    if (filtro.codigoMunicipio) {
-      params.push(filtro.codigoMunicipio);
-      conds.push(`codigo_municipio = $${params.length}`);
-    }
-
-    const sql = `
-      SELECT
-        codigo_corporacion,
-        MAX(nombre_corporacion) AS nombre_corporacion,
-        COALESCE(SUM(total_votos), 0)    AS total_votos,
-        COUNT(DISTINCT codigo_candidato) AS total_candidatos,
-        COUNT(DISTINCT codigo_partido)   AS total_partidos,
-        SUM(COALESCE(SUM(total_votos), 0)) OVER () AS total_general
-      FROM data_election
-      WHERE ${conds.join(' AND ')}
-      GROUP BY codigo_corporacion
-      ORDER BY total_votos DESC
-    `;
-
-    const rows = await this.db.query<ComparativoCorporacionRow>(sql, params);
-    return rows.map((r) => {
-      const totalGeneral = toNum(r.total_general);
-      const totalVotos = toNum(r.total_votos);
-      const participacionPct = totalGeneral > 0 ? (totalVotos / totalGeneral) * 100 : 0;
-      return new ComparativoCorporacion(
-        r.codigo_corporacion,
-        r.nombre_corporacion,
-        totalVotos,
-        toInt(r.total_candidatos),
-        toInt(r.total_partidos),
-        Number(participacionPct.toFixed(2)),
-      );
-    });
-  }
-
-  async compararCandidatos(
-    filtro: FiltroComparativoCandidato,
-  ): Promise<ComparativoCandidato[]> {
-    const params: unknown[] = [];
-    const placeholders = filtro.codigosCandidato.map((c) => {
-      params.push(c);
-      return `$${params.length}`;
-    });
-
-    const conds: string[] = [`codigo_candidato IN (${placeholders.join(', ')})`];
-
-    if (filtro.codigoDepartamento) {
-      params.push(filtro.codigoDepartamento);
-      conds.push(`codigo_departamento = $${params.length}`);
-    }
-    if (filtro.codigoMunicipio) {
-      params.push(filtro.codigoMunicipio);
-      conds.push(`codigo_municipio = $${params.length}`);
-    }
-
-    const sql = `
-      SELECT
-        codigo_candidato,
-        MAX(nombre_candidato)   AS nombre_candidato,
-        codigo_partido,
-        MAX(nombre_partido)     AS nombre_partido,
-        codigo_corporacion,
-        MAX(nombre_corporacion) AS nombre_corporacion,
-        COALESCE(SUM(total_votos), 0) AS total_votos,
-        SUM(COALESCE(SUM(total_votos), 0)) OVER () AS total_general
-      FROM data_election
-      WHERE ${conds.join(' AND ')}
-      GROUP BY codigo_candidato, codigo_partido, codigo_corporacion
-      ORDER BY total_votos DESC
-    `;
-
-    const rows = await this.db.query<ComparativoCandidatoRow>(sql, params);
-    return rows.map((r) => {
-      const totalGeneral = toNum(r.total_general);
-      const totalVotos = toNum(r.total_votos);
-      const participacionPct = totalGeneral > 0 ? (totalVotos / totalGeneral) * 100 : 0;
-      return new ComparativoCandidato(
-        r.codigo_candidato,
-        r.nombre_candidato,
-        r.codigo_partido,
-        r.nombre_partido,
-        r.codigo_corporacion,
-        r.nombre_corporacion,
-        totalVotos,
-        Number(participacionPct.toFixed(2)),
-      );
-    });
   }
 
   async compararTerritorial(

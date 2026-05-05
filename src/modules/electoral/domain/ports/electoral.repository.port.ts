@@ -1,5 +1,3 @@
-import { ComparativoCandidato } from '../entities/comparativo-candidato.entity';
-import { ComparativoCorporacion } from '../entities/comparativo-corporacion.entity';
 import { ComparativoTerritorialResultado } from '../entities/comparativo-territorial.entity';
 import { RankingCandidato } from '../entities/ranking-candidato.entity';
 import { RankingPartido } from '../entities/ranking-partido.entity';
@@ -8,10 +6,6 @@ import { ResumenElectoral } from '../entities/resumen-electoral.entity';
 import { VotosPorDepartamento } from '../entities/votos-departamento.entity';
 import { VotosPorMunicipio } from '../entities/votos-municipio.entity';
 import { VotosPorPuesto } from '../entities/votos-puesto.entity';
-import {
-  FiltroComparativoCandidato,
-  FiltroComparativoCorporacion,
-} from '../value-objects/filtro-comparativo.vo';
 import { FiltroComparativoTerritorial } from '../value-objects/filtro-comparativo-territorial.vo';
 import { FiltroElectoral } from '../value-objects/filtro-electoral.vo';
 
@@ -31,12 +25,6 @@ export interface ElectoralRepositoryPort {
   obtenerRankingCandidatos(filtro: FiltroElectoral, limite: number): Promise<RankingCandidato[]>;
 
   obtenerResumenPorCorporacion(filtro: FiltroElectoral): Promise<ResumenCorporacion[]>;
-
-  compararCorporaciones(
-    filtro: FiltroComparativoCorporacion,
-  ): Promise<ComparativoCorporacion[]>;
-
-  compararCandidatos(filtro: FiltroComparativoCandidato): Promise<ComparativoCandidato[]>;
 
   compararTerritorial(
     filtro: FiltroComparativoTerritorial,

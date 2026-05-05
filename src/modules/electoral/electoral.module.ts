@@ -1,6 +1,4 @@
 import { Module } from '@nestjs/common';
-import { CompararCandidatosUseCase } from './application/use-cases/comparar-candidatos.use-case';
-import { CompararCorporacionesUseCase } from './application/use-cases/comparar-corporaciones.use-case';
 import { CompararTerritorialUseCase } from './application/use-cases/comparar-territorial.use-case';
 import { ObtenerRankingCandidatosUseCase } from './application/use-cases/obtener-ranking-candidatos.use-case';
 import { ObtenerRankingPartidosUseCase } from './application/use-cases/obtener-ranking-partidos.use-case';
@@ -23,8 +21,6 @@ import { PostgresElectoralRepository } from './infrastructure/persistence/postgr
     ObtenerRankingPartidosUseCase,
     ObtenerRankingCandidatosUseCase,
     ObtenerResumenPorCorporacionUseCase,
-    CompararCorporacionesUseCase,
-    CompararCandidatosUseCase,
     CompararTerritorialUseCase,
     {
       provide: ELECTORAL_REPOSITORY,

@@ -24,7 +24,7 @@ export class PostgresAdapter implements DatabasePort, OnModuleInit, OnModuleDest
       idleTimeoutMillis: cfg.idleTimeoutMs,
       statement_timeout: cfg.statementTimeoutMs,
       ssl: cfg.ssl ? { rejectUnauthorized: false } : undefined,
-      application_name: 'consultas-cne-backend',
+      application_name: 'territoriales-cne-backend',
     };
 
     this.pool = new Pool(poolConfig);
