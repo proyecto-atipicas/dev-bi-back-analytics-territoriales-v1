@@ -6,5 +6,6 @@ export class ResumenElectoral {
     public readonly totalCorporaciones: number,
     public readonly totalDepartamentos: number,
     public readonly totalMunicipios: number,
+    public readonly totalPuestos: number,
   ) {}
 }

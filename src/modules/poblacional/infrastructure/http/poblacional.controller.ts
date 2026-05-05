@@ -1,15 +1,19 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ListarCriteriosUseCase } from '../../application/use-cases/listar-criterios.use-case';
 import { ListarDimensionesUseCase } from '../../application/use-cases/listar-dimensiones.use-case';
 import { ListarReferenciasUseCase } from '../../application/use-cases/listar-referencias.use-case';
 import { ListarResumenDimensionesUseCase } from '../../application/use-cases/listar-resumen-dimensiones.use-case';
 import { ObtenerKpisPoblacionalUseCase } from '../../application/use-cases/obtener-kpis-poblacional.use-case';
+import { ObtenerRadarPoblacionalUseCase } from '../../application/use-cases/obtener-radar-poblacional.use-case';
 import { ObtenerSeriePoblacionalUseCase } from '../../application/use-cases/obtener-serie-poblacional.use-case';
 import {
   FiltroPoblacionalQueryDto,
+  ListarCriteriosQueryDto,
   ListarReferenciasQueryDto,
 } from './dtos/filtro-poblacional.query.dto';
 import { KpiPoblacionalResponseDto } from './dtos/kpi-poblacional.response.dto';
+import { RadarPoblacionalResponseDto } from './dtos/radar-poblacional.response.dto';
 import { ResumenDimensionResponseDto } from './dtos/resumen-dimension.response.dto';
 import { SeriePoblacionalPuntoResponseDto } from './dtos/serie-poblacional-punto.response.dto';
 
@@ -20,8 +24,10 @@ export class PoblacionalController {
     private readonly listarDimensiones: ListarDimensionesUseCase,
     private readonly listarResumenDimensiones: ListarResumenDimensionesUseCase,
     private readonly listarReferencias: ListarReferenciasUseCase,
+    private readonly listarCriterios: ListarCriteriosUseCase,
     private readonly obtenerKpis: ObtenerKpisPoblacionalUseCase,
     private readonly obtenerSerie: ObtenerSeriePoblacionalUseCase,
+    private readonly obtenerRadar: ObtenerRadarPoblacionalUseCase,
   ) {}
 
   @Get('dimensiones')
@@ -51,6 +57,20 @@ export class PoblacionalController {
     return this.listarReferencias.execute(q.dimension, q.fuente);
   }
 
+  @Get('criterios')
+  @ApiOperation({
+    summary:
+      'Lista los criterios de una referencia (filtrable por dimensión / fuente / referencia)',
+  })
+  @ApiOkResponse({ type: String, isArray: true })
+  async getCriterios(@Query() q: ListarCriteriosQueryDto): Promise<string[]> {
+    return this.listarCriterios.execute({
+      dimension: q.dimension ?? null,
+      fuente: q.fuente ?? null,
+      referencia: q.referencia ?? null,
+    });
+  }
+
   @Get('kpis')
   @ApiOperation({ summary: 'KPIs (promedio, mín, máx) por dimensión/referencia' })
   @ApiOkResponse({ type: KpiPoblacionalResponseDto, isArray: true })
@@ -69,5 +89,18 @@ export class PoblacionalController {
   ): Promise<SeriePoblacionalPuntoResponseDto[]> {
     const result = await this.obtenerSerie.execute(q.toDomain());
     return result.map(SeriePoblacionalPuntoResponseDto.fromDomain);
+  }
+
+  @Get('radar')
+  @ApiOperation({
+    summary:
+      'Radar: valor por criterio en el último período disponible para la referencia',
+  })
+  @ApiOkResponse({ type: RadarPoblacionalResponseDto, isArray: true })
+  async getRadar(
+    @Query() q: FiltroPoblacionalQueryDto,
+  ): Promise<RadarPoblacionalResponseDto[]> {
+    const result = await this.obtenerRadar.execute(q.toDomain());
+    return result.map(RadarPoblacionalResponseDto.fromDomain);
   }
 }

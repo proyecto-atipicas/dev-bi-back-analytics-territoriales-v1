@@ -33,6 +33,7 @@ interface ResumenRow {
   total_corporaciones: string | null;
   total_departamentos: string | null;
   total_municipios: string | null;
+  total_puestos: string | null;
 }
 
 interface VotosDepartamentoRow {
@@ -126,6 +127,8 @@ export class PostgresElectoralRepository implements ElectoralRepositoryPort {
 
   async obtenerResumen(filtro: FiltroElectoral): Promise<ResumenElectoral> {
     const { whereClause, params } = buildFiltroElectoralSql(filtro);
+    // Los puestos se identifican por la tripleta (depto, muni, puesto) — un mismo
+    // codigo_puesto se repite entre municipios distintos.
     const sql = `
       SELECT
         COALESCE(SUM(total_votos), 0)            AS total_votos,
@@ -133,7 +136,9 @@ export class PostgresElectoralRepository implements ElectoralRepositoryPort {
         COUNT(DISTINCT codigo_partido)           AS total_partidos,
         COUNT(DISTINCT codigo_corporacion)       AS total_corporaciones,
         COUNT(DISTINCT codigo_departamento)      AS total_departamentos,
-        COUNT(DISTINCT codigo_municipio)         AS total_municipios
+        COUNT(DISTINCT codigo_municipio)         AS total_municipios,
+        COUNT(DISTINCT (codigo_departamento, codigo_municipio, codigo_puesto))
+          FILTER (WHERE codigo_puesto IS NOT NULL) AS total_puestos
       FROM data_election
       WHERE ${whereClause}
     `;
@@ -145,6 +150,7 @@ export class PostgresElectoralRepository implements ElectoralRepositoryPort {
       toInt(row?.total_corporaciones ?? null),
       toInt(row?.total_departamentos ?? null),
       toInt(row?.total_municipios ?? null),
+      toInt(row?.total_puestos ?? null),
     );
   }
 

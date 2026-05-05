@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { DatabasePort } from '../../../../shared/database/database.port';
 import { DATABASE_PORT } from '../../../../shared/database/database.tokens';
 import { KpiPoblacional } from '../../domain/entities/kpi-poblacional.entity';
+import { RadarPoblacionalPunto } from '../../domain/entities/radar-poblacional-punto.entity';
 import {
   FuenteConReferencias,
   ResumenDimension,
@@ -18,6 +19,10 @@ interface DimensionRow {
 
 interface ReferenciaRow {
   referencia: string;
+}
+
+interface CriterioRow {
+  criterio: string;
 }
 
 interface ResumenDimensionRow {
@@ -41,6 +46,13 @@ interface SerieRow {
   dimension: string | null;
   criterio: string | null;
   valor: string | null;
+}
+
+interface RadarRow {
+  criterio: string | null;
+  valor: string | null;
+  anio: number | null;
+  mes: number | null;
 }
 
 const toNum = (v: string | null | undefined): number => (v == null ? 0 : Number(v));
@@ -81,6 +93,34 @@ export class PostgresPoblacionalRepository implements PoblacionalRepositoryPort 
       params,
     );
     return rows.map((r) => r.referencia);
+  }
+
+  async listarCriterios(filtro: FiltroPoblacional): Promise<string[]> {
+    const conds: string[] = ['criterio IS NOT NULL'];
+    const params: unknown[] = [];
+    let idx = 1;
+
+    if (filtro.dimension) {
+      params.push(filtro.dimension);
+      conds.push(`dimension = $${idx++}`);
+    }
+    if (filtro.fuente) {
+      params.push(filtro.fuente);
+      conds.push(`fuente = $${idx++}`);
+    }
+    if (filtro.referencia) {
+      params.push(filtro.referencia);
+      conds.push(`referencia = $${idx++}`);
+    }
+
+    const rows = await this.db.query<CriterioRow>(
+      `SELECT DISTINCT criterio
+       FROM data_encuestas
+       WHERE ${conds.join(' AND ')}
+       ORDER BY criterio ASC`,
+      params,
+    );
+    return rows.map((r) => r.criterio);
   }
 
   async listarResumenDimensiones(): Promise<ResumenDimension[]> {
@@ -170,6 +210,49 @@ export class PostgresPoblacionalRepository implements PoblacionalRepositoryPort 
       );
   }
 
+  async obtenerRadarUltimoPeriodo(
+    filtro: FiltroPoblacional,
+  ): Promise<RadarPoblacionalPunto[]> {
+    const { whereClause, params } = this.buildWhere(filtro);
+    // Estrategia: identificar el último (anio, mes) disponible para la combinación
+    // (dimensión/fuente/referencia + filtros de criterio si los hay) y agregar por
+    // criterio dentro de ese período. Se usa la misma whereClause de los demás
+    // queries para que los filtros por criterio (multi) apliquen también al radar.
+    const sql = `
+      WITH ultimo AS (
+        SELECT anio, mes
+        FROM data_encuestas
+        WHERE ${whereClause}
+          AND anio IS NOT NULL
+        ORDER BY anio DESC, mes DESC NULLS LAST
+        LIMIT 1
+      )
+      SELECT criterio,
+             AVG(reporte) AS valor,
+             MAX(anio)    AS anio,
+             MAX(mes)     AS mes
+      FROM data_encuestas, ultimo
+      WHERE ${whereClause}
+        AND anio = ultimo.anio
+        AND COALESCE(mes, -1) = COALESCE(ultimo.mes, -1)
+        AND criterio IS NOT NULL
+      GROUP BY criterio
+      ORDER BY criterio ASC
+    `;
+    const rows = await this.db.query<RadarRow>(sql, params);
+    return rows
+      .filter((r) => r.criterio != null)
+      .map(
+        (r) =>
+          new RadarPoblacionalPunto(
+            r.criterio as string,
+            Number(toNum(r.valor).toFixed(2)),
+            r.anio,
+            r.mes,
+          ),
+      );
+  }
+
   private buildWhere(filtro: FiltroPoblacional): { whereClause: string; params: unknown[] } {
     const conds: string[] = [];
     const params: unknown[] = [];
@@ -187,7 +270,10 @@ export class PostgresPoblacionalRepository implements PoblacionalRepositoryPort 
       params.push(filtro.referencia);
       conds.push(`referencia = $${idx++}`);
     }
-    if (filtro.criterio) {
+    if (filtro.criterios && filtro.criterios.length > 0) {
+      params.push(filtro.criterios);
+      conds.push(`criterio = ANY($${idx++}::text[])`);
+    } else if (filtro.criterio) {
       params.push(filtro.criterio);
       conds.push(`criterio = $${idx++}`);
     }

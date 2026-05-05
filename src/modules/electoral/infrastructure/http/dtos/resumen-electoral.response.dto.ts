@@ -8,6 +8,7 @@ export class ResumenElectoralResponseDto {
   @ApiProperty() totalCorporaciones!: number;
   @ApiProperty() totalDepartamentos!: number;
   @ApiProperty() totalMunicipios!: number;
+  @ApiProperty() totalPuestos!: number;
 
   static fromDomain(r: ResumenElectoral): ResumenElectoralResponseDto {
     return {
@@ -17,6 +18,7 @@ export class ResumenElectoralResponseDto {
       totalCorporaciones: r.totalCorporaciones,
       totalDepartamentos: r.totalDepartamentos,
       totalMunicipios: r.totalMunicipios,
+      totalPuestos: r.totalPuestos,
     };
   }
 }
