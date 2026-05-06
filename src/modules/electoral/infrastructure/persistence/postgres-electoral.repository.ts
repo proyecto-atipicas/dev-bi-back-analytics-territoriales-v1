@@ -102,11 +102,14 @@ export class PostgresElectoralRepository implements ElectoralRepositoryPort {
   async obtenerResumen(filtro: FiltroElectoral): Promise<ResumenElectoral> {
     const { whereClause, params } = buildFiltroElectoralSql(filtro);
     // Los puestos se identifican por la tripleta (depto, muni, puesto) — un mismo
-    // codigo_puesto se repite entre municipios distintos.
+    // codigo_puesto se repite entre municipios distintos. Los candidatos se
+    // identifican por la tupla (codigo_candidato, codigo_partido) — el código
+    // se reinicia por partido.
     const sql = `
       SELECT
         COALESCE(SUM(total_votos), 0)            AS total_votos,
-        COUNT(DISTINCT codigo_candidato)         AS total_candidatos,
+        COUNT(DISTINCT (codigo_candidato, codigo_partido))
+          FILTER (WHERE codigo_candidato IS NOT NULL) AS total_candidatos,
         COUNT(DISTINCT codigo_partido)           AS total_partidos,
         COUNT(DISTINCT codigo_corporacion)       AS total_corporaciones,
         COUNT(DISTINCT codigo_departamento)      AS total_departamentos,
@@ -150,7 +153,11 @@ export class PostgresElectoralRepository implements ElectoralRepositoryPort {
     const rows = await this.db.query<VotosDepartamentoRow>(sql, params);
     return rows.map(
       (r) =>
-        new VotosPorDepartamento(r.codigo_departamento, r.nombre_departamento, toNum(r.total_votos)),
+        new VotosPorDepartamento(
+          r.codigo_departamento,
+          r.nombre_departamento,
+          toNum(r.total_votos),
+        ),
     );
   }
 
@@ -230,10 +237,7 @@ export class PostgresElectoralRepository implements ElectoralRepositoryPort {
     );
   }
 
-  async obtenerRankingPartidos(
-    filtro: FiltroElectoral,
-    limite: number,
-  ): Promise<RankingPartido[]> {
+  async obtenerRankingPartidos(filtro: FiltroElectoral, limite: number): Promise<RankingPartido[]> {
     const { whereClause, params } = buildFiltroElectoralSql(filtro);
     params.push(limite);
     const limiteIdx = params.length;
@@ -301,29 +305,55 @@ export class PostgresElectoralRepository implements ElectoralRepositoryPort {
   async compararTerritorial(
     filtro: FiltroComparativoTerritorial,
   ): Promise<ComparativoTerritorialResultado> {
-    const codigoCol = filtro.tipo === 'partido' ? 'codigo_partido' : 'codigo_candidato';
-    const nombreCol = filtro.tipo === 'partido' ? 'nombre_partido' : 'nombre_candidato';
+    const esCandidato = filtro.tipo === 'candidato';
+    const codigoCol = esCandidato ? 'codigo_candidato' : 'codigo_partido';
+    const nombreCol = esCandidato ? 'nombre_candidato' : 'nombre_partido';
+
+    // Para candidatos la identidad real es la tupla (codigo_candidato,
+    // codigo_partido) — el código se reinicia por partido. Construimos
+    // condiciones específicas para A y B en lugar de un IN ($1, $2).
+    const condA = esCandidato
+      ? `(e.codigo_candidato = $1 AND e.codigo_partido = $4)`
+      : `e.codigo_partido = $1`;
+    const condB = esCandidato
+      ? `(e.codigo_candidato = $2 AND e.codigo_partido = $5)`
+      : `e.codigo_partido = $2`;
+    const condEnAB = `(${condA} OR ${condB})`;
+
+    // Clave de mapa para distinguir A de B cuando ambos comparten codigo
+    // pero pertenecen a partidos distintos (caso real para candidatos).
+    const claveMeta = (codigo: string, codigoPartido: string | null): string =>
+      esCandidato ? `${codigo}|${codigoPartido ?? ''}` : codigo;
 
     // 1) Metadatos de los ítems (nombre + partido asociado para candidatos).
     const metaParams: unknown[] = [filtro.codigoA, filtro.codigoB, filtro.codigoCorporacion];
+    if (esCandidato) {
+      metaParams.push(filtro.codigoPartidoA, filtro.codigoPartidoB);
+    }
     const metaSql = `
       SELECT
-        ${codigoCol}              AS codigo,
-        MAX(${nombreCol})         AS nombre,
-        MAX(codigo_partido)       AS codigo_partido,
-        MAX(nombre_partido)       AS nombre_partido
-      FROM data_election
-      WHERE ${codigoCol} IN ($1, $2)
-        AND codigo_corporacion = $3
-        AND ${codigoCol} IS NOT NULL
-      GROUP BY ${codigoCol}
+        e.${codigoCol}              AS codigo,
+        MAX(e.${nombreCol})         AS nombre,
+        MAX(e.codigo_partido)       AS codigo_partido,
+        MAX(e.nombre_partido)       AS nombre_partido
+      FROM data_election e
+      WHERE e.codigo_corporacion = $3
+        AND e.${codigoCol} IS NOT NULL
+        AND ${condEnAB}
+      GROUP BY e.${codigoCol}${esCandidato ? ', e.codigo_partido' : ''}
     `;
     const metaRows = await this.db.query<ItemMetaRow>(metaSql, metaParams);
     const metaMap = new Map<string, ItemMetaRow>();
-    for (const r of metaRows) metaMap.set(r.codigo, r);
+    for (const r of metaRows) {
+      metaMap.set(claveMeta(r.codigo, r.codigo_partido), r);
+    }
 
     // 2) Resultado por territorio + total elección. Granularidad por filtros.
+    // Mantenemos los mismos índices $1..$5 para reutilizar los condA/condB.
     const params: unknown[] = [filtro.codigoA, filtro.codigoB, filtro.codigoCorporacion];
+    if (esCandidato) {
+      params.push(filtro.codigoPartidoA, filtro.codigoPartidoB);
+    }
     const conds: string[] = [`e.codigo_corporacion = $3`];
     if (filtro.codigoDepartamento) {
       params.push(filtro.codigoDepartamento);
@@ -411,14 +441,14 @@ export class PostgresElectoralRepository implements ElectoralRepositoryPort {
     const sql = `
       SELECT
         ${selectCols},
-        COALESCE(SUM(CASE WHEN e.${codigoCol} = $1 THEN e.total_votos END), 0) AS total_a,
-        COALESCE(SUM(CASE WHEN e.${codigoCol} = $2 THEN e.total_votos END), 0) AS total_b,
+        COALESCE(SUM(CASE WHEN ${condA} THEN e.total_votos END), 0) AS total_a,
+        COALESCE(SUM(CASE WHEN ${condB} THEN e.total_votos END), 0) AS total_b,
         COALESCE(SUM(e.total_votos), 0) AS total_eleccion
       FROM data_election e
       ${joinClause}
       WHERE ${conds.join(' AND ')}
       GROUP BY ${groupCols}
-      HAVING COALESCE(SUM(CASE WHEN e.${codigoCol} IN ($1, $2) THEN e.total_votos END), 0) > 0
+      HAVING COALESCE(SUM(CASE WHEN ${condEnAB} THEN e.total_votos END), 0) > 0
       ORDER BY total_eleccion DESC
     `;
 
@@ -457,16 +487,20 @@ export class PostgresElectoralRepository implements ElectoralRepositoryPort {
 
     const buildItem = (
       codigo: string,
+      codigoPartidoTupla: string | null,
       total: number,
       totalTerritorios: number,
     ): ItemComparativoTerritorial => {
-      const meta = metaMap.get(codigo);
+      const meta = metaMap.get(claveMeta(codigo, codigoPartidoTupla));
       const nombre = meta?.nombre ?? codigo;
       const participacionPct = totalEleccion > 0 ? (total / totalEleccion) * 100 : 0;
-      // Para tipo=partido, el codigo_partido del meta es el mismo que el código del ítem;
-      // para candidato, es el partido al que pertenece.
-      const codigoPartido = filtro.tipo === 'partido' ? codigo : meta?.codigo_partido ?? null;
-      const nombrePartido = filtro.tipo === 'partido' ? nombre : meta?.nombre_partido ?? null;
+      // Para tipo=partido, el codigo_partido del ítem es el mismo que el código;
+      // para candidato, viene en el filtro (clave compuesta) y se prefiere sobre
+      // el agregado del meta-row.
+      const codigoPartido = esCandidato
+        ? (codigoPartidoTupla ?? meta?.codigo_partido ?? null)
+        : codigo;
+      const nombrePartido = esCandidato ? (meta?.nombre_partido ?? null) : nombre;
       return new ItemComparativoTerritorial(
         codigo,
         nombre,
@@ -480,8 +514,8 @@ export class PostgresElectoralRepository implements ElectoralRepositoryPort {
 
     return new ComparativoTerritorialResultado(
       nivel,
-      buildItem(filtro.codigoA, totalA, totalTerritoriosA),
-      buildItem(filtro.codigoB, totalB, totalTerritoriosB),
+      buildItem(filtro.codigoA, filtro.codigoPartidoA, totalA, totalTerritoriosA),
+      buildItem(filtro.codigoB, filtro.codigoPartidoB, totalB, totalTerritoriosB),
       totalEleccion,
       territorios,
     );
@@ -495,7 +529,8 @@ export class PostgresElectoralRepository implements ElectoralRepositoryPort {
         codigo_corporacion,
         MAX(nombre_corporacion) AS nombre_corporacion,
         COALESCE(SUM(total_votos), 0)    AS total_votos,
-        COUNT(DISTINCT codigo_candidato) AS total_candidatos,
+        COUNT(DISTINCT (codigo_candidato, codigo_partido))
+          FILTER (WHERE codigo_candidato IS NOT NULL) AS total_candidatos,
         COUNT(DISTINCT codigo_partido)   AS total_partidos,
         SUM(COALESCE(SUM(total_votos), 0)) OVER () AS total_general
       FROM data_election

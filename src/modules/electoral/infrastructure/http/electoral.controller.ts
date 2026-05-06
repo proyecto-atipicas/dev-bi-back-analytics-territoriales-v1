@@ -57,9 +57,7 @@ export class ElectoralController {
   @Get('por-municipio')
   @ApiOperation({ summary: 'Total de votos por municipio (requiere codigoDepartamento)' })
   @ApiOkResponse({ type: VotosMunicipioResponseDto, isArray: true })
-  async getPorMunicipio(
-    @Query() q: FiltroElectoralQueryDto,
-  ): Promise<VotosMunicipioResponseDto[]> {
+  async getPorMunicipio(@Query() q: FiltroElectoralQueryDto): Promise<VotosMunicipioResponseDto[]> {
     const result = await this.obtenerVotosMun.execute(q.toDomain());
     return result.map(VotosMunicipioResponseDto.fromDomain);
   }
@@ -70,9 +68,7 @@ export class ElectoralController {
       'Total de votos por puesto de votación (requiere codigoDepartamento y codigoMunicipio)',
   })
   @ApiOkResponse({ type: VotosPuestoResponseDto, isArray: true })
-  async getPorPuesto(
-    @Query() q: FiltroElectoralQueryDto,
-  ): Promise<VotosPuestoResponseDto[]> {
+  async getPorPuesto(@Query() q: FiltroElectoralQueryDto): Promise<VotosPuestoResponseDto[]> {
     const result = await this.obtenerVotosPuesto.execute(q.toDomain());
     return result.map(VotosPuestoResponseDto.fromDomain);
   }

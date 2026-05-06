@@ -35,6 +35,22 @@ export class FiltroComparativoTerritorialQueryDto {
   @IsString()
   codigoMunicipio?: string;
 
+  @ApiPropertyOptional({
+    description:
+      'Código del partido del ítem A. OBLIGATORIO cuando tipo=candidato (codigo_candidato no es único globalmente, se reinicia por partido).',
+  })
+  @IsOptional()
+  @IsString()
+  codigoPartidoA?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Código del partido del ítem B. OBLIGATORIO cuando tipo=candidato (codigo_candidato no es único globalmente, se reinicia por partido).',
+  })
+  @IsOptional()
+  @IsString()
+  codigoPartidoB?: string;
+
   toDomain(): FiltroComparativoTerritorial {
     return new FiltroComparativoTerritorial(
       this.tipo,
@@ -43,6 +59,8 @@ export class FiltroComparativoTerritorialQueryDto {
       this.codigoCorporacion,
       this.codigoDepartamento ?? null,
       this.codigoMunicipio ?? null,
+      this.codigoPartidoA ?? null,
+      this.codigoPartidoB ?? null,
     );
   }
 }

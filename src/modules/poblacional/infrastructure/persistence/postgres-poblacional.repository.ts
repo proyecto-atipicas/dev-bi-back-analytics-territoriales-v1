@@ -210,9 +210,7 @@ export class PostgresPoblacionalRepository implements PoblacionalRepositoryPort 
       );
   }
 
-  async obtenerRadarUltimoPeriodo(
-    filtro: FiltroPoblacional,
-  ): Promise<RadarPoblacionalPunto[]> {
+  async obtenerRadarUltimoPeriodo(filtro: FiltroPoblacional): Promise<RadarPoblacionalPunto[]> {
     const { whereClause, params } = this.buildWhere(filtro);
     // Estrategia: identificar el último (anio, mes) disponible para la combinación
     // (dimensión/fuente/referencia + filtros de criterio si los hay) y agregar por

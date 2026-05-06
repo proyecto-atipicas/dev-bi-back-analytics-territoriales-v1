@@ -39,8 +39,7 @@ export class PoblacionalController {
 
   @Get('resumen-dimensiones')
   @ApiOperation({
-    summary:
-      'Resumen inicial: cada dimensión con la cantidad de referencias por fuente',
+    summary: 'Resumen inicial: cada dimensión con la cantidad de referencias por fuente',
   })
   @ApiOkResponse({ type: ResumenDimensionResponseDto, isArray: true })
   async getResumenDimensiones(): Promise<ResumenDimensionResponseDto[]> {
@@ -74,9 +73,7 @@ export class PoblacionalController {
   @Get('kpis')
   @ApiOperation({ summary: 'KPIs (promedio, mín, máx) por dimensión/referencia' })
   @ApiOkResponse({ type: KpiPoblacionalResponseDto, isArray: true })
-  async getKpis(
-    @Query() q: FiltroPoblacionalQueryDto,
-  ): Promise<KpiPoblacionalResponseDto[]> {
+  async getKpis(@Query() q: FiltroPoblacionalQueryDto): Promise<KpiPoblacionalResponseDto[]> {
     const result = await this.obtenerKpis.execute(q.toDomain());
     return result.map(KpiPoblacionalResponseDto.fromDomain);
   }
@@ -93,13 +90,10 @@ export class PoblacionalController {
 
   @Get('radar')
   @ApiOperation({
-    summary:
-      'Radar: valor por criterio en el último período disponible para la referencia',
+    summary: 'Radar: valor por criterio en el último período disponible para la referencia',
   })
   @ApiOkResponse({ type: RadarPoblacionalResponseDto, isArray: true })
-  async getRadar(
-    @Query() q: FiltroPoblacionalQueryDto,
-  ): Promise<RadarPoblacionalResponseDto[]> {
+  async getRadar(@Query() q: FiltroPoblacionalQueryDto): Promise<RadarPoblacionalResponseDto[]> {
     const result = await this.obtenerRadar.execute(q.toDomain());
     return result.map(RadarPoblacionalResponseDto.fromDomain);
   }

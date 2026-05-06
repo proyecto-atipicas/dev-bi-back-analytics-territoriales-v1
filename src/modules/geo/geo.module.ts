@@ -17,10 +17,6 @@ import { PostgresGeoRepository } from './infrastructure/persistence/postgres-geo
       useClass: PostgresGeoRepository,
     },
   ],
-  exports: [
-    ListarDepartamentosUseCase,
-    ListarMunicipiosUseCase,
-    ListarPuestosUseCase,
-  ],
+  exports: [ListarDepartamentosUseCase, ListarMunicipiosUseCase, ListarPuestosUseCase],
 })
 export class GeoModule {}

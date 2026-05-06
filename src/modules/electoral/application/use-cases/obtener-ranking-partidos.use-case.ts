@@ -11,9 +11,7 @@ const LIMITE_MAX = 200;
 
 @Injectable()
 export class ObtenerRankingPartidosUseCase {
-  constructor(
-    @Inject(ELECTORAL_REPOSITORY) private readonly repository: ElectoralRepositoryPort,
-  ) {}
+  constructor(@Inject(ELECTORAL_REPOSITORY) private readonly repository: ElectoralRepositoryPort) {}
 
   execute(filtro: FiltroElectoral, limite = LIMITE_DEFAULT): Promise<RankingPartido[]> {
     const lim = Math.min(Math.max(limite, 1), LIMITE_MAX);

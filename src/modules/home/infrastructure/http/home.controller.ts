@@ -14,9 +14,7 @@ export class HomeController {
     summary: 'Payload consolidado del Home: resumen, tarjetas, mapa y KPIs en una sola consulta',
   })
   @ApiOkResponse({ type: DashboardHomeResponseDto })
-  async getDashboard(
-    @Query() q: FiltroElectoralQueryDto,
-  ): Promise<DashboardHomeResponseDto> {
+  async getDashboard(@Query() q: FiltroElectoralQueryDto): Promise<DashboardHomeResponseDto> {
     const result = await this.obtenerDashboard.execute(q.toDomain());
     return DashboardHomeResponseDto.fromDomain(result);
   }

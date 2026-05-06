@@ -8,9 +8,7 @@ import { FiltroElectoral } from '../../domain/value-objects/filtro-electoral.vo'
 
 @Injectable()
 export class ObtenerVotosPorMunicipioUseCase {
-  constructor(
-    @Inject(ELECTORAL_REPOSITORY) private readonly repository: ElectoralRepositoryPort,
-  ) {}
+  constructor(@Inject(ELECTORAL_REPOSITORY) private readonly repository: ElectoralRepositoryPort) {}
 
   execute(filtro: FiltroElectoral): Promise<VotosPorMunicipio[]> {
     if (!filtro.codigoDepartamento) {

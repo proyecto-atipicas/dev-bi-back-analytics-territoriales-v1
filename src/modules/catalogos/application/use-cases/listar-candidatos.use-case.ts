@@ -11,9 +11,7 @@ const LIMITE_MAX = 1000;
 
 @Injectable()
 export class ListarCandidatosUseCase {
-  constructor(
-    @Inject(CATALOGOS_REPOSITORY) private readonly repository: CatalogosRepositoryPort,
-  ) {}
+  constructor(@Inject(CATALOGOS_REPOSITORY) private readonly repository: CatalogosRepositoryPort) {}
 
   execute(filtros: ListarCandidatosFiltros = {}): Promise<Candidato[]> {
     const limite = Math.min(filtros.limite ?? LIMITE_DEFAULT, LIMITE_MAX);

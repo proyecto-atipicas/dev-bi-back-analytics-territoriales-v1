@@ -4,6 +4,7 @@ import { ListarCategoriasUseCase } from '../../application/use-cases/listar-cate
 import { ListarFuentesPublicacionesUseCase } from '../../application/use-cases/listar-fuentes-publicaciones.use-case';
 import { ObtenerKpisSocioeconomicosUseCase } from '../../application/use-cases/obtener-kpis.use-case';
 import { ObtenerPorDepartamentoSocioeconomicoUseCase } from '../../application/use-cases/obtener-por-departamento.use-case';
+import { ObtenerResumenDepartamentoUseCase } from '../../application/use-cases/obtener-resumen-departamento.use-case';
 import { ObtenerSerieHistoricaUseCase } from '../../application/use-cases/obtener-serie-historica.use-case';
 import {
   FiltroSocioeconomicoQueryDto,
@@ -11,6 +12,7 @@ import {
 } from './dtos/filtro-socioeconomico.query.dto';
 import { IndicadorDepartamentoResponseDto } from './dtos/indicador-departamento.response.dto';
 import { KpiSocioeconomicoResponseDto } from './dtos/kpi-socioeconomico.response.dto';
+import { ResumenDepartamentoCategoriaResponseDto } from './dtos/resumen-departamento-categoria.response.dto';
 import { SerieHistoricaPuntoResponseDto } from './dtos/serie-historica-punto.response.dto';
 
 @ApiTags('Socioeconomico')
@@ -22,6 +24,7 @@ export class SocioeconomicoController {
     private readonly obtenerKpis: ObtenerKpisSocioeconomicosUseCase,
     private readonly obtenerSerie: ObtenerSerieHistoricaUseCase,
     private readonly obtenerPorDepartamento: ObtenerPorDepartamentoSocioeconomicoUseCase,
+    private readonly obtenerResumenDep: ObtenerResumenDepartamentoUseCase,
   ) {}
 
   @Get('fuentes-publicaciones')
@@ -46,9 +49,7 @@ export class SocioeconomicoController {
   @Get('kpis')
   @ApiOperation({ summary: 'KPIs (promedio, mín, máx) por categoría según filtros' })
   @ApiOkResponse({ type: KpiSocioeconomicoResponseDto, isArray: true })
-  async getKpis(
-    @Query() q: FiltroSocioeconomicoQueryDto,
-  ): Promise<KpiSocioeconomicoResponseDto[]> {
+  async getKpis(@Query() q: FiltroSocioeconomicoQueryDto): Promise<KpiSocioeconomicoResponseDto[]> {
     const result = await this.obtenerKpis.execute(q.toDomain());
     return result.map(KpiSocioeconomicoResponseDto.fromDomain);
   }
@@ -74,5 +75,18 @@ export class SocioeconomicoController {
   ): Promise<IndicadorDepartamentoResponseDto[]> {
     const result = await this.obtenerPorDepartamento.execute(q.toDomain());
     return result.map(IndicadorDepartamentoResponseDto.fromDomain);
+  }
+
+  @Get('resumen-departamento')
+  @ApiOperation({
+    summary:
+      'Snapshot por categoría para un departamento dado: último valor, calificación, ranking nacional, promedio nacional y valor del año anterior. Requiere codigoDepartamento.',
+  })
+  @ApiOkResponse({ type: ResumenDepartamentoCategoriaResponseDto, isArray: true })
+  async getResumenDepartamento(
+    @Query() q: FiltroSocioeconomicoQueryDto,
+  ): Promise<ResumenDepartamentoCategoriaResponseDto[]> {
+    const result = await this.obtenerResumenDep.execute(q.toDomain());
+    return result.map(ResumenDepartamentoCategoriaResponseDto.fromDomain);
   }
 }

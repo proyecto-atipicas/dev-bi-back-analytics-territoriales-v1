@@ -30,7 +30,7 @@ export class GlobalHttpExceptionFilter implements ExceptionFilter {
 
     const message = isHttp
       ? exception.getResponse()
-      : (exception as Error)?.message ?? 'Error interno del servidor';
+      : ((exception as Error)?.message ?? 'Error interno del servidor');
 
     if (status >= 500) {
       this.logger.error(

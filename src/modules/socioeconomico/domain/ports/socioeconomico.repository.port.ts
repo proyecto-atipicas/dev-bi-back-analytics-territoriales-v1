@@ -1,5 +1,6 @@
 import { IndicadorPorDepartamento } from '../entities/indicador-departamento.entity';
 import { KpiSocioeconomico } from '../entities/kpi-socioeconomico.entity';
+import { ResumenDepartamentoCategoria } from '../entities/resumen-departamento-categoria.entity';
 import { SerieHistoricaPunto } from '../entities/serie-historica-punto.entity';
 import { FuenteSocioeconomica } from '../value-objects/fuente-socioeconomica.vo';
 
@@ -37,4 +38,14 @@ export interface SocioeconomicoRepositoryPort {
    * calor por calificación y la tabla lateral.
    */
   obtenerPorDepartamento(filtro: FiltroSocioeconomico): Promise<IndicadorPorDepartamento[]>;
+
+  /**
+   * Snapshot por categoría para un departamento puntual: último valor,
+   * calificación, posición y promedio nacional. El filtro requiere
+   * `codigoDepartamento`; `categoria` se ignora (devuelve TODAS las
+   * categorías de la fuente). Sirve para el panel "Detalle por departamento".
+   */
+  obtenerResumenDepartamento(
+    filtro: FiltroSocioeconomico,
+  ): Promise<ResumenDepartamentoCategoria[]>;
 }

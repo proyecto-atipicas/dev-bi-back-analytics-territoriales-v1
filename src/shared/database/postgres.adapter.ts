@@ -54,10 +54,7 @@ export class PostgresAdapter implements DatabasePort, OnModuleInit, OnModuleDest
     }
   }
 
-  async query<T = unknown>(
-    sql: string,
-    params: ReadonlyArray<unknown> = [],
-  ): Promise<T[]> {
+  async query<T = unknown>(sql: string, params: ReadonlyArray<unknown> = []): Promise<T[]> {
     const start = Date.now();
     try {
       const result = await this.pool.query(sql, params as unknown[]);
@@ -73,10 +70,7 @@ export class PostgresAdapter implements DatabasePort, OnModuleInit, OnModuleDest
     }
   }
 
-  async queryOne<T = unknown>(
-    sql: string,
-    params: ReadonlyArray<unknown> = [],
-  ): Promise<T | null> {
+  async queryOne<T = unknown>(sql: string, params: ReadonlyArray<unknown> = []): Promise<T | null> {
     const rows = await this.query<T>(sql, params);
     return rows[0] ?? null;
   }

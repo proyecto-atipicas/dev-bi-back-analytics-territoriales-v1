@@ -17,10 +17,6 @@ import { PostgresCatalogosRepository } from './infrastructure/persistence/postgr
       useClass: PostgresCatalogosRepository,
     },
   ],
-  exports: [
-    ListarCorporacionesUseCase,
-    ListarPartidosUseCase,
-    ListarCandidatosUseCase,
-  ],
+  exports: [ListarCorporacionesUseCase, ListarPartidosUseCase, ListarCandidatosUseCase],
 })
 export class CatalogosModule {}

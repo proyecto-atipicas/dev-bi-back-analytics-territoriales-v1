@@ -14,12 +14,16 @@ export class CandidatoResponseDto {
   @ApiProperty({ example: '1', nullable: true })
   codigoCorporacion!: string | null;
 
+  @ApiProperty({ example: 'PARTIDO LIBERAL', nullable: true })
+  nombrePartido!: string | null;
+
   static fromDomain(c: Candidato): CandidatoResponseDto {
     return {
       codigo: c.codigo,
       nombre: c.nombre,
       codigoPartido: c.codigoPartido,
       codigoCorporacion: c.codigoCorporacion,
+      nombrePartido: c.nombrePartido,
     };
   }
 }

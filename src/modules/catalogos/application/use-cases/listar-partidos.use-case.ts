@@ -18,8 +18,6 @@ export class ListarPartidosUseCase {
 
   execute(filtros: ListarPartidosFiltros = {}): Promise<Partido[]> {
     const key = `catalogos:partidos:${filtros.codigoCorporacion ?? '*'}`;
-    return this.cache.getOrSet(key, TTL_MS, () =>
-      this.repository.listarPartidos(filtros),
-    );
+    return this.cache.getOrSet(key, TTL_MS, () => this.repository.listarPartidos(filtros));
   }
 }

@@ -3,6 +3,7 @@ import { DatabasePort } from '../../../../shared/database/database.port';
 import { DATABASE_PORT } from '../../../../shared/database/database.tokens';
 import { IndicadorPorDepartamento } from '../../domain/entities/indicador-departamento.entity';
 import { KpiSocioeconomico } from '../../domain/entities/kpi-socioeconomico.entity';
+import { ResumenDepartamentoCategoria } from '../../domain/entities/resumen-departamento-categoria.entity';
 import { SerieHistoricaPunto } from '../../domain/entities/serie-historica-punto.entity';
 import {
   FiltroSocioeconomico,
@@ -40,6 +41,20 @@ interface PorDepartamentoRow {
   valor: string | null;
   ano: number | null;
   categoria: string | null;
+}
+
+interface ResumenDepartamentoRow {
+  codigo_departamento: string;
+  departamento: string | null;
+  categoria: string;
+  valor: string | null;
+  calificacion: string | null;
+  ano: number;
+  posicion: string | null;
+  total_departamentos: string | null;
+  promedio_nacional: string | null;
+  valor_ano_anterior: string | null;
+  ano_anterior: number | null;
 }
 
 const toNum = (v: string | null | undefined): number => (v == null ? 0 : Number(v));
@@ -132,17 +147,11 @@ export class PostgresSocioeconomicoRepository implements SocioeconomicoRepositor
       .filter((r) => r.ano != null)
       .map(
         (r) =>
-          new SerieHistoricaPunto(
-            r.ano as number,
-            r.categoria,
-            Number(toNum(r.valor).toFixed(2)),
-          ),
+          new SerieHistoricaPunto(r.ano as number, r.categoria, Number(toNum(r.valor).toFixed(2))),
       );
   }
 
-  async obtenerPorDepartamento(
-    filtro: FiltroSocioeconomico,
-  ): Promise<IndicadorPorDepartamento[]> {
+  async obtenerPorDepartamento(filtro: FiltroSocioeconomico): Promise<IndicadorPorDepartamento[]> {
     const tabla = fuenteATabla(filtro.fuente);
 
     // Construimos el WHERE base SIN el filtro de año, porque el año se aplica
@@ -201,6 +210,119 @@ export class PostgresSocioeconomicoRepository implements SocioeconomicoRepositor
             r.categoria,
           ),
       );
+  }
+
+  async obtenerResumenDepartamento(
+    filtro: FiltroSocioeconomico,
+  ): Promise<ResumenDepartamentoCategoria[]> {
+    if (!filtro.codigoDepartamento) {
+      // El use case ya valida; defensa extra.
+      return [];
+    }
+    const tabla = fuenteATabla(filtro.fuente);
+
+    // El depto va siempre en $1 (con LPAD para manejar códigos sin padding).
+    const params: unknown[] = [filtro.codigoDepartamento];
+    let idx = 2;
+
+    // Sólo data_publicaciones acepta filtro por columna `fuente`.
+    let baseFuenteCond = '';
+    if (filtro.fuente === FuenteSocioeconomica.PUBLICACIONES && filtro.fuentePublicacion) {
+      params.push(filtro.fuentePublicacion);
+      baseFuenteCond = `AND fuente = $${idx++}`;
+    }
+
+    // Estrategia:
+    //  1) `base`: tabla normalizada con código de depto LPAD'd y filtros estables.
+    //  2) `ult_ano_cat`: último año disponible por categoría (varía entre categorías).
+    //  3) `ultimos`: registros del último año por categoría.
+    //  4) `ranked`: añade RANK + AVG + COUNT como window functions sobre la categoría.
+    //  5) `ano_prev` + `prev_vals`: valor del año inmediatamente anterior para el depto.
+    const sql = `
+      WITH base AS (
+        SELECT
+          LPAD(codigo_departamento, 2, '0') AS codigo_departamento,
+          departamento, categoria, calificacion, valor, ano
+        FROM ${tabla}
+        WHERE codigo_departamento IS NOT NULL
+          AND categoria IS NOT NULL
+          AND valor IS NOT NULL
+          AND ano IS NOT NULL
+          ${baseFuenteCond}
+      ),
+      ult_ano_cat AS (
+        SELECT categoria, MAX(ano) AS max_ano
+        FROM base
+        GROUP BY categoria
+      ),
+      ultimos AS (
+        SELECT b.*
+        FROM base b
+        JOIN ult_ano_cat u
+          ON u.categoria = b.categoria AND b.ano = u.max_ano
+      ),
+      ranked AS (
+        SELECT
+          codigo_departamento,
+          departamento,
+          categoria,
+          calificacion,
+          valor,
+          ano,
+          RANK() OVER (PARTITION BY categoria ORDER BY valor DESC) AS posicion,
+          COUNT(*) OVER (PARTITION BY categoria) AS total_departamentos,
+          AVG(valor) OVER (PARTITION BY categoria) AS promedio_nacional
+        FROM ultimos
+      ),
+      ano_prev AS (
+        SELECT b.categoria, MAX(b.ano) AS prev_ano
+        FROM base b
+        JOIN ult_ano_cat u ON u.categoria = b.categoria
+        WHERE b.codigo_departamento = LPAD($1, 2, '0')
+          AND b.ano < u.max_ano
+        GROUP BY b.categoria
+      ),
+      prev_vals AS (
+        SELECT b.categoria, b.valor AS valor_ano_anterior, b.ano AS ano_anterior
+        FROM base b
+        JOIN ano_prev p ON p.categoria = b.categoria AND b.ano = p.prev_ano
+        WHERE b.codigo_departamento = LPAD($1, 2, '0')
+      )
+      SELECT
+        r.codigo_departamento,
+        r.departamento,
+        r.categoria,
+        r.valor,
+        r.calificacion,
+        r.ano,
+        r.posicion,
+        r.total_departamentos,
+        r.promedio_nacional,
+        pv.valor_ano_anterior,
+        pv.ano_anterior
+      FROM ranked r
+      LEFT JOIN prev_vals pv ON pv.categoria = r.categoria
+      WHERE r.codigo_departamento = LPAD($1, 2, '0')
+      ORDER BY r.categoria ASC
+    `;
+
+    const rows = await this.db.query<ResumenDepartamentoRow>(sql, params);
+    return rows.map(
+      (r) =>
+        new ResumenDepartamentoCategoria(
+          r.codigo_departamento,
+          r.departamento ?? r.codigo_departamento,
+          r.categoria,
+          toNum(r.valor),
+          r.calificacion,
+          r.ano,
+          parseInt(r.posicion ?? '0', 10),
+          parseInt(r.total_departamentos ?? '0', 10),
+          Number(toNum(r.promedio_nacional).toFixed(2)),
+          r.valor_ano_anterior == null ? null : Number(toNum(r.valor_ano_anterior).toFixed(2)),
+          r.ano_anterior,
+        ),
+    );
   }
 
   private buildWhere(filtro: FiltroSocioeconomico): { whereClause: string; params: unknown[] } {

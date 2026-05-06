@@ -4,9 +4,7 @@ import { GEO_REPOSITORY, GeoRepositoryPort } from '../../domain/ports/geo.reposi
 
 @Injectable()
 export class ListarPuestosUseCase {
-  constructor(
-    @Inject(GEO_REPOSITORY) private readonly repository: GeoRepositoryPort,
-  ) {}
+  constructor(@Inject(GEO_REPOSITORY) private readonly repository: GeoRepositoryPort) {}
 
   execute(codigoDepartamento: string, codigoMunicipio: string): Promise<Puesto[]> {
     if (!codigoDepartamento || codigoDepartamento.trim() === '') {

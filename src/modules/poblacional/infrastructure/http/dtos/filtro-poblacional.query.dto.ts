@@ -1,22 +1,12 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import {
-  ArrayMaxSize,
-  IsArray,
-  IsInt,
-  IsOptional,
-  IsString,
-  Max,
-  Min,
-} from 'class-validator';
+import { ArrayMaxSize, IsArray, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 import { FiltroPoblacional } from '../../../domain/ports/poblacional.repository.port';
 
 function toStringArray(value: unknown): string[] | undefined {
   if (value == null || value === '') return undefined;
   const arr = Array.isArray(value) ? value : String(value).split(',');
-  const limpio = arr
-    .map((v) => String(v).trim())
-    .filter((v) => v.length > 0);
+  const limpio = arr.map((v) => String(v).trim()).filter((v) => v.length > 0);
   return limpio.length > 0 ? limpio : undefined;
 }
 

@@ -25,6 +25,7 @@ interface CandidatoRow {
   nombre_candidato: string;
   codigo_partido: string | null;
   codigo_corporacion: string | null;
+  nombre_partido: string | null;
 }
 
 @Injectable()
@@ -44,10 +45,7 @@ export class PostgresCatalogosRepository implements CatalogosRepositoryPort {
 
   async listarPartidos(filtros: ListarPartidosFiltros): Promise<Partido[]> {
     const params: unknown[] = [];
-    const conds: string[] = [
-      'codigo_partido IS NOT NULL',
-      'nombre_partido IS NOT NULL',
-    ];
+    const conds: string[] = ['codigo_partido IS NOT NULL', 'nombre_partido IS NOT NULL'];
     if (filtros.codigoCorporacion) {
       params.push(filtros.codigoCorporacion);
       conds.push(`codigo_corporacion = $${params.length}`);
@@ -64,10 +62,7 @@ export class PostgresCatalogosRepository implements CatalogosRepositoryPort {
 
   async listarCandidatos(filtros: ListarCandidatosFiltros): Promise<Candidato[]> {
     const params: unknown[] = [];
-    const conds: string[] = [
-      'codigo_candidato IS NOT NULL',
-      'nombre_candidato IS NOT NULL',
-    ];
+    const conds: string[] = ['codigo_candidato IS NOT NULL', 'nombre_candidato IS NOT NULL'];
     if (filtros.codigoCorporacion) {
       params.push(filtros.codigoCorporacion);
       conds.push(`codigo_corporacion = $${params.length}`);
@@ -80,7 +75,7 @@ export class PostgresCatalogosRepository implements CatalogosRepositoryPort {
     const limiteIdx = params.length;
 
     const rows = await this.db.query<CandidatoRow>(
-      `SELECT DISTINCT codigo_candidato, nombre_candidato, codigo_partido, codigo_corporacion
+      `SELECT DISTINCT codigo_candidato, nombre_candidato, codigo_partido, codigo_corporacion, nombre_partido
        FROM data_election
        WHERE ${conds.join(' AND ')}
        ORDER BY nombre_candidato ASC
@@ -89,7 +84,13 @@ export class PostgresCatalogosRepository implements CatalogosRepositoryPort {
     );
     return rows.map(
       (r) =>
-        new Candidato(r.codigo_candidato, r.nombre_candidato, r.codigo_partido, r.codigo_corporacion),
+        new Candidato(
+          r.codigo_candidato,
+          r.nombre_candidato,
+          r.codigo_partido,
+          r.codigo_corporacion,
+          r.nombre_partido,
+        ),
     );
   }
 }
