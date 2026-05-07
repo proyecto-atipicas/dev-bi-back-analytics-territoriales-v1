@@ -211,31 +211,69 @@ export class PostgresPoblacionalRepository implements PoblacionalRepositoryPort 
   }
 
   async obtenerRadarUltimoPeriodo(filtro: FiltroPoblacional): Promise<RadarPoblacionalPunto[]> {
-    const { whereClause, params } = this.buildWhere(filtro);
-    // Estrategia: identificar el último (anio, mes) disponible para la combinación
-    // (dimensión/fuente/referencia + filtros de criterio si los hay) y agregar por
-    // criterio dentro de ese período. Se usa la misma whereClause de los demás
-    // queries para que los filtros por criterio (multi) apliquen también al radar.
+    // El "último periodo válido" se determina sobre la combinación
+    // (fuente/dimensión/referencia) sin aplicar el filtro de criterios:
+    // primero se ordena por año DESC y mes DESC (último mes con información
+    // registrada) y, una vez identificado ese (anio, mes), se grafican los
+    // valores correspondientes a cada criterio seleccionado dentro de ese
+    // mismo periodo. Así se evita que la elección de criterios mueva la
+    // fecha de referencia al pasado y que se mezclen periodos distintos.
+    const params: unknown[] = [];
+    const condsBase: string[] = [];
+    let idx = 1;
+
+    if (filtro.fuente) {
+      params.push(filtro.fuente);
+      condsBase.push(`de.fuente = $${idx++}`);
+    }
+    if (filtro.dimension) {
+      params.push(filtro.dimension);
+      condsBase.push(`de.dimension = $${idx++}`);
+    }
+    if (filtro.referencia) {
+      params.push(filtro.referencia);
+      condsBase.push(`de.referencia = $${idx++}`);
+    }
+    if (filtro.anio != null) {
+      params.push(filtro.anio);
+      condsBase.push(`de.anio = $${idx++}`);
+    }
+    if (filtro.mes != null) {
+      params.push(filtro.mes);
+      condsBase.push(`de.mes = $${idx++}`);
+    }
+    const whereBase = condsBase.length ? condsBase.join(' AND ') : '1=1';
+
+    let condCriterio = '';
+    if (filtro.criterios && filtro.criterios.length > 0) {
+      params.push(filtro.criterios);
+      condCriterio = ` AND de.criterio = ANY($${idx++}::text[])`;
+    } else if (filtro.criterio) {
+      params.push(filtro.criterio);
+      condCriterio = ` AND de.criterio = $${idx++}`;
+    }
+
     const sql = `
       WITH ultimo AS (
-        SELECT anio, mes
-        FROM data_encuestas
-        WHERE ${whereClause}
-          AND anio IS NOT NULL
-        ORDER BY anio DESC, mes DESC NULLS LAST
+        SELECT de.anio, de.mes
+        FROM data_encuestas de
+        WHERE ${whereBase}
+          AND de.anio IS NOT NULL
+        ORDER BY de.anio DESC, de.mes DESC NULLS LAST
         LIMIT 1
       )
-      SELECT criterio,
-             AVG(reporte) AS valor,
-             MAX(anio)    AS anio,
-             MAX(mes)     AS mes
-      FROM data_encuestas, ultimo
-      WHERE ${whereClause}
-        AND anio = ultimo.anio
-        AND COALESCE(mes, -1) = COALESCE(ultimo.mes, -1)
-        AND criterio IS NOT NULL
-      GROUP BY criterio
-      ORDER BY criterio ASC
+      SELECT de.criterio,
+             AVG(de.reporte) AS valor,
+             MIN(u.anio)     AS anio,
+             MIN(u.mes)      AS mes
+      FROM data_encuestas de
+      CROSS JOIN ultimo u
+      WHERE ${whereBase}${condCriterio}
+        AND de.anio = u.anio
+        AND COALESCE(de.mes, -1) = COALESCE(u.mes, -1)
+        AND de.criterio IS NOT NULL
+      GROUP BY de.criterio
+      ORDER BY de.criterio ASC
     `;
     const rows = await this.db.query<RadarRow>(sql, params);
     return rows
