@@ -1,4 +1,4 @@
-# Backend Analítica Territorial — CNE
+# Backend Analítica Territorial
 
 
 API NestJS con **arquitectura hexagonal** (Ports & Adapters) para los tableros electorales, socioeconómicos y poblacionales.

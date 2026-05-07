@@ -32,7 +32,7 @@ async function bootstrap(): Promise<void> {
   app.useGlobalFilters(new GlobalHttpExceptionFilter());
 
   const swaggerConfig = new DocumentBuilder()
-    .setTitle('API Analítica Territorial - CNE')
+    .setTitle('API Analítica Territorial')
     .setDescription('Backend hexagonal para tableros electorales, socioeconómicos y poblacionales')
     .setVersion('0.1.0')
     .build();

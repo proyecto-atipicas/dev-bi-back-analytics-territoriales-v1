@@ -1,7 +1,7 @@
 {
   "name": "dev-back-territoriales-v1",
   "version": "0.1.0",
-  "description": "Backend de Análitica Territorial - CNE (NestJS, arquitectura hexagonal)",
+  "description": "Backend de Analítica Territorial (NestJS, arquitectura hexagonal)",
   "private": true,
   "scripts": {
     "build": "nest build",

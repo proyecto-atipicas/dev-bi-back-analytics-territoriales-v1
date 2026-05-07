@@ -45,7 +45,5 @@ export interface SocioeconomicoRepositoryPort {
    * `codigoDepartamento`; `categoria` se ignora (devuelve TODAS las
    * categorías de la fuente). Sirve para el panel "Detalle por departamento".
    */
-  obtenerResumenDepartamento(
-    filtro: FiltroSocioeconomico,
-  ): Promise<ResumenDepartamentoCategoria[]>;
+  obtenerResumenDepartamento(filtro: FiltroSocioeconomico): Promise<ResumenDepartamentoCategoria[]>;
 }
