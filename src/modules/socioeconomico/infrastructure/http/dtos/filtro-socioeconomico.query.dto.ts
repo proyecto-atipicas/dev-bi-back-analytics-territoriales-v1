@@ -22,25 +22,39 @@ export class FiltroSocioeconomicoQueryDto {
   @IsString()
   codigoDepartamento?: string;
 
-  @ApiPropertyOptional({ description: 'Filtrar por categoría' })
+  @ApiPropertyOptional({ description: 'Filtrar por dimensión (antes `categoria`)' })
   @IsOptional()
   @IsString()
-  categoria?: string;
+  dimension?: string;
 
-  @ApiPropertyOptional({ description: 'Filtrar por año' })
+  @ApiPropertyOptional({ description: 'Filtrar por período (antes `ano`)' })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1900)
-  ano?: number;
+  periodo?: number;
+
+  @ApiPropertyOptional({ description: 'Filtrar por referencia' })
+  @IsOptional()
+  @IsString()
+  referencia?: string;
+
+  @ApiPropertyOptional({
+    description: 'Filtrar por nivel geográfico (Departamental | Nacional | …)',
+  })
+  @IsOptional()
+  @IsString()
+  nivelGeografico?: string;
 
   toDomain(): FiltroSocioeconomico {
     return {
       fuente: this.fuente,
       fuentePublicacion: this.fuentePublicacion ?? null,
       codigoDepartamento: this.codigoDepartamento ?? null,
-      categoria: this.categoria ?? null,
-      ano: this.ano ?? null,
+      dimension: this.dimension ?? null,
+      periodo: this.periodo ?? null,
+      referencia: this.referencia ?? null,
+      nivelGeografico: this.nivelGeografico ?? null,
     };
   }
 }

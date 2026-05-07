@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { ResumenDepartamentoCategoria } from '../../../domain/entities/resumen-departamento-categoria.entity';
+import { ResumenDepartamentoDimension } from '../../../domain/entities/resumen-departamento-categoria.entity';
 
-export class ResumenDepartamentoCategoriaResponseDto {
+export class ResumenDepartamentoDimensionResponseDto {
   @ApiProperty({ example: '05' })
   codigoDepartamento!: string;
 
@@ -9,16 +9,16 @@ export class ResumenDepartamentoCategoriaResponseDto {
   departamento!: string;
 
   @ApiProperty({ example: 'Pobreza monetaria' })
-  categoria!: string;
+  dimension!: string;
 
   @ApiProperty({ example: 23.45 })
   valor!: number;
 
   @ApiProperty({ example: 'medio', nullable: true })
-  calificacion!: string | null;
+  nivelRiesgo!: string | null;
 
   @ApiProperty({ example: 2023 })
-  ano!: number;
+  periodo!: number;
 
   @ApiProperty({ example: 7, description: 'Posición del depto (1 = mayor valor)' })
   posicion!: number;
@@ -30,24 +30,24 @@ export class ResumenDepartamentoCategoriaResponseDto {
   promedioNacional!: number;
 
   @ApiProperty({ example: 24.1, nullable: true })
-  valorAnoAnterior!: number | null;
+  valorPeriodoAnterior!: number | null;
 
   @ApiProperty({ example: 2022, nullable: true })
-  anoAnterior!: number | null;
+  periodoAnterior!: number | null;
 
-  static fromDomain(r: ResumenDepartamentoCategoria): ResumenDepartamentoCategoriaResponseDto {
+  static fromDomain(r: ResumenDepartamentoDimension): ResumenDepartamentoDimensionResponseDto {
     return {
       codigoDepartamento: r.codigoDepartamento,
       departamento: r.departamento,
-      categoria: r.categoria,
+      dimension: r.dimension,
       valor: r.valor,
-      calificacion: r.calificacion,
-      ano: r.ano,
+      nivelRiesgo: r.nivelRiesgo,
+      periodo: r.periodo,
       posicion: r.posicion,
       totalDepartamentos: r.totalDepartamentos,
       promedioNacional: r.promedioNacional,
-      valorAnoAnterior: r.valorAnoAnterior,
-      anoAnterior: r.anoAnterior,
+      valorPeriodoAnterior: r.valorPeriodoAnterior,
+      periodoAnterior: r.periodoAnterior,
     };
   }
 }

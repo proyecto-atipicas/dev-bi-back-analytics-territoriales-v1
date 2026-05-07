@@ -1,5 +1,5 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
-import { ResumenDepartamentoCategoria } from '../../domain/entities/resumen-departamento-categoria.entity';
+import { ResumenDepartamentoDimension } from '../../domain/entities/resumen-departamento-categoria.entity';
 import {
   FiltroSocioeconomico,
   SOCIOECONOMICO_REPOSITORY,
@@ -13,7 +13,7 @@ export class ObtenerResumenDepartamentoUseCase {
     private readonly repository: SocioeconomicoRepositoryPort,
   ) {}
 
-  execute(filtro: FiltroSocioeconomico): Promise<ResumenDepartamentoCategoria[]> {
+  execute(filtro: FiltroSocioeconomico): Promise<ResumenDepartamentoDimension[]> {
     if (!filtro.codigoDepartamento) {
       throw new BadRequestException(
         'codigoDepartamento es obligatorio para el resumen por departamento',

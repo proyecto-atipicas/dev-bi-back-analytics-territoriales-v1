@@ -2,23 +2,23 @@ import { ApiProperty } from '@nestjs/swagger';
 import { KpiSocioeconomico } from '../../../domain/entities/kpi-socioeconomico.entity';
 
 export class KpiSocioeconomicoResponseDto {
-  @ApiProperty() categoria!: string;
+  @ApiProperty() dimension!: string;
   @ApiProperty() promedio!: number;
   @ApiProperty() minimo!: number;
   @ApiProperty() maximo!: number;
   @ApiProperty() cantidadRegistros!: number;
-  @ApiProperty({ nullable: true }) anoMinimo!: number | null;
-  @ApiProperty({ nullable: true }) anoMaximo!: number | null;
+  @ApiProperty({ nullable: true }) periodoMinimo!: number | null;
+  @ApiProperty({ nullable: true }) periodoMaximo!: number | null;
 
   static fromDomain(k: KpiSocioeconomico): KpiSocioeconomicoResponseDto {
     return {
-      categoria: k.categoria,
+      dimension: k.dimension,
       promedio: k.promedio,
       minimo: k.minimo,
       maximo: k.maximo,
       cantidadRegistros: k.cantidadRegistros,
-      anoMinimo: k.anoMinimo,
-      anoMaximo: k.anoMaximo,
+      periodoMinimo: k.periodoMinimo,
+      periodoMaximo: k.periodoMaximo,
     };
   }
 }

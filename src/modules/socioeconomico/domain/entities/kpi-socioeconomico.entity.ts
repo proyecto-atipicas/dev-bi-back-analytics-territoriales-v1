@@ -1,11 +1,14 @@
 export class KpiSocioeconomico {
   constructor(
-    public readonly categoria: string,
+    /** Antes `categoria`. */
+    public readonly dimension: string,
     public readonly promedio: number,
     public readonly minimo: number,
     public readonly maximo: number,
     public readonly cantidadRegistros: number,
-    public readonly anoMinimo: number | null,
-    public readonly anoMaximo: number | null,
+    /** Antes `anoMinimo`. */
+    public readonly periodoMinimo: number | null,
+    /** Antes `anoMaximo`. */
+    public readonly periodoMaximo: number | null,
   ) {}
 }

@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
-import { ListarCategoriasUseCase } from './application/use-cases/listar-categorias.use-case';
+import { ListarDimensionesUseCase } from './application/use-cases/listar-categorias.use-case';
 import { ListarFuentesPublicacionesUseCase } from './application/use-cases/listar-fuentes-publicaciones.use-case';
+import { ListarNivelesGeograficosUseCase } from './application/use-cases/listar-niveles-geograficos.use-case';
+import { ListarReferenciasUseCase } from './application/use-cases/listar-referencias.use-case';
 import { ObtenerKpisSocioeconomicosUseCase } from './application/use-cases/obtener-kpis.use-case';
 import { ObtenerPorDepartamentoSocioeconomicoUseCase } from './application/use-cases/obtener-por-departamento.use-case';
 import { ObtenerResumenDepartamentoUseCase } from './application/use-cases/obtener-resumen-departamento.use-case';
@@ -12,8 +14,10 @@ import { PostgresSocioeconomicoRepository } from './infrastructure/persistence/p
 @Module({
   controllers: [SocioeconomicoController],
   providers: [
-    ListarCategoriasUseCase,
+    ListarDimensionesUseCase,
     ListarFuentesPublicacionesUseCase,
+    ListarReferenciasUseCase,
+    ListarNivelesGeograficosUseCase,
     ObtenerKpisSocioeconomicosUseCase,
     ObtenerSerieHistoricaUseCase,
     ObtenerPorDepartamentoSocioeconomicoUseCase,

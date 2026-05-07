@@ -5,19 +5,28 @@ export class IndicadorDepartamentoResponseDto {
   @ApiProperty() codigoDepartamento!: string;
   @ApiProperty() departamento!: string;
   @ApiProperty({ nullable: true, description: 'medio | alto | extremo | otro' })
-  calificacion!: string | null;
+  nivelRiesgo!: string | null;
   @ApiProperty() valor!: number;
-  @ApiProperty() ano!: number;
-  @ApiProperty({ nullable: true }) categoria!: string | null;
+  @ApiProperty() periodo!: number;
+  @ApiProperty({ nullable: true }) dimension!: string | null;
+  @ApiProperty({ nullable: true }) serieEstadistica!: string | null;
+  @ApiProperty({ nullable: true, description: 'Departamental | Nacional | …' })
+  nivelGeografico!: string | null;
+  @ApiProperty({ nullable: true }) referencia!: string | null;
+  @ApiProperty({ nullable: true }) observacion!: string | null;
 
   static fromDomain(i: IndicadorPorDepartamento): IndicadorDepartamentoResponseDto {
     return {
       codigoDepartamento: i.codigoDepartamento,
       departamento: i.departamento,
-      calificacion: i.calificacion,
+      nivelRiesgo: i.nivelRiesgo,
       valor: i.valor,
-      ano: i.ano,
-      categoria: i.categoria,
+      periodo: i.periodo,
+      dimension: i.dimension,
+      serieEstadistica: i.serieEstadistica,
+      nivelGeografico: i.nivelGeografico,
+      referencia: i.referencia,
+      observacion: i.observacion,
     };
   }
 }

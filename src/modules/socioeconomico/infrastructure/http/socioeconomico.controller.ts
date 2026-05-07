@@ -1,7 +1,9 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { ListarCategoriasUseCase } from '../../application/use-cases/listar-categorias.use-case';
+import { ListarDimensionesUseCase } from '../../application/use-cases/listar-categorias.use-case';
 import { ListarFuentesPublicacionesUseCase } from '../../application/use-cases/listar-fuentes-publicaciones.use-case';
+import { ListarNivelesGeograficosUseCase } from '../../application/use-cases/listar-niveles-geograficos.use-case';
+import { ListarReferenciasUseCase } from '../../application/use-cases/listar-referencias.use-case';
 import { ObtenerKpisSocioeconomicosUseCase } from '../../application/use-cases/obtener-kpis.use-case';
 import { ObtenerPorDepartamentoSocioeconomicoUseCase } from '../../application/use-cases/obtener-por-departamento.use-case';
 import { ObtenerResumenDepartamentoUseCase } from '../../application/use-cases/obtener-resumen-departamento.use-case';
@@ -12,15 +14,17 @@ import {
 } from './dtos/filtro-socioeconomico.query.dto';
 import { IndicadorDepartamentoResponseDto } from './dtos/indicador-departamento.response.dto';
 import { KpiSocioeconomicoResponseDto } from './dtos/kpi-socioeconomico.response.dto';
-import { ResumenDepartamentoCategoriaResponseDto } from './dtos/resumen-departamento-categoria.response.dto';
+import { ResumenDepartamentoDimensionResponseDto } from './dtos/resumen-departamento-categoria.response.dto';
 import { SerieHistoricaPuntoResponseDto } from './dtos/serie-historica-punto.response.dto';
 
 @ApiTags('Socioeconomico')
 @Controller('socioeconomico')
 export class SocioeconomicoController {
   constructor(
-    private readonly listarCategorias: ListarCategoriasUseCase,
+    private readonly listarDimensiones: ListarDimensionesUseCase,
     private readonly listarFuentesPublicaciones: ListarFuentesPublicacionesUseCase,
+    private readonly listarReferencias: ListarReferenciasUseCase,
+    private readonly listarNivelesGeo: ListarNivelesGeograficosUseCase,
     private readonly obtenerKpis: ObtenerKpisSocioeconomicosUseCase,
     private readonly obtenerSerie: ObtenerSerieHistoricaUseCase,
     private readonly obtenerPorDepartamento: ObtenerPorDepartamentoSocioeconomicoUseCase,
@@ -36,18 +40,37 @@ export class SocioeconomicoController {
     return this.listarFuentesPublicaciones.execute();
   }
 
-  @Get('categorias')
+  @Get('dimensiones')
   @ApiOperation({
     summary:
-      'Lista las categorías disponibles para una fuente (opcionalmente filtrado por fuentePublicacion)',
+      'Lista las dimensiones disponibles para una fuente (opcionalmente filtrado por fuentePublicacion). Antes `/categorias`.',
   })
   @ApiOkResponse({ type: String, isArray: true })
-  async getCategorias(@Query() q: FuenteQueryDto): Promise<string[]> {
-    return this.listarCategorias.execute(q.fuente, q.fuentePublicacion);
+  async getDimensiones(@Query() q: FuenteQueryDto): Promise<string[]> {
+    return this.listarDimensiones.execute(q.fuente, q.fuentePublicacion);
+  }
+
+  @Get('referencias')
+  @ApiOperation({
+    summary: 'Distinct de referencias para los filtros aplicados',
+  })
+  @ApiOkResponse({ type: String, isArray: true })
+  async getReferencias(@Query() q: FiltroSocioeconomicoQueryDto): Promise<string[]> {
+    return this.listarReferencias.execute(q.toDomain());
+  }
+
+  @Get('niveles-geograficos')
+  @ApiOperation({
+    summary:
+      'Distinct de niveles geográficos (Departamental, Nacional, …) para los filtros aplicados',
+  })
+  @ApiOkResponse({ type: String, isArray: true })
+  async getNivelesGeograficos(@Query() q: FiltroSocioeconomicoQueryDto): Promise<string[]> {
+    return this.listarNivelesGeo.execute(q.toDomain());
   }
 
   @Get('kpis')
-  @ApiOperation({ summary: 'KPIs (promedio, mín, máx) por categoría según filtros' })
+  @ApiOperation({ summary: 'KPIs (promedio, mín, máx) por dimensión según filtros' })
   @ApiOkResponse({ type: KpiSocioeconomicoResponseDto, isArray: true })
   async getKpis(@Query() q: FiltroSocioeconomicoQueryDto): Promise<KpiSocioeconomicoResponseDto[]> {
     const result = await this.obtenerKpis.execute(q.toDomain());
@@ -55,7 +78,7 @@ export class SocioeconomicoController {
   }
 
   @Get('serie-historica')
-  @ApiOperation({ summary: 'Serie histórica por año y categoría' })
+  @ApiOperation({ summary: 'Serie histórica por período y dimensión' })
   @ApiOkResponse({ type: SerieHistoricaPuntoResponseDto, isArray: true })
   async getSerieHistorica(
     @Query() q: FiltroSocioeconomicoQueryDto,
@@ -67,7 +90,7 @@ export class SocioeconomicoController {
   @Get('por-departamento')
   @ApiOperation({
     summary:
-      'Indicadores por departamento (último año disponible si no se especifica). Alimenta el mapa de calor y la tabla lateral.',
+      'Indicadores por departamento (último período disponible si no se especifica). Alimenta el mapa de calor y la tabla lateral.',
   })
   @ApiOkResponse({ type: IndicadorDepartamentoResponseDto, isArray: true })
   async getPorDepartamento(
@@ -80,13 +103,13 @@ export class SocioeconomicoController {
   @Get('resumen-departamento')
   @ApiOperation({
     summary:
-      'Snapshot por categoría para un departamento dado: último valor, calificación, ranking nacional, promedio nacional y valor del año anterior. Requiere codigoDepartamento.',
+      'Snapshot por dimensión para un departamento dado: último valor, nivel de riesgo, ranking nacional, promedio nacional y valor del período anterior. Requiere codigoDepartamento.',
   })
-  @ApiOkResponse({ type: ResumenDepartamentoCategoriaResponseDto, isArray: true })
+  @ApiOkResponse({ type: ResumenDepartamentoDimensionResponseDto, isArray: true })
   async getResumenDepartamento(
     @Query() q: FiltroSocioeconomicoQueryDto,
-  ): Promise<ResumenDepartamentoCategoriaResponseDto[]> {
+  ): Promise<ResumenDepartamentoDimensionResponseDto[]> {
     const result = await this.obtenerResumenDep.execute(q.toDomain());
-    return result.map(ResumenDepartamentoCategoriaResponseDto.fromDomain);
+    return result.map(ResumenDepartamentoDimensionResponseDto.fromDomain);
   }
 }

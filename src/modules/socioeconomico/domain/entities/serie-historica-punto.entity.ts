@@ -1,7 +1,9 @@
 export class SerieHistoricaPunto {
   constructor(
-    public readonly ano: number,
-    public readonly categoria: string | null,
+    /** Antes `ano`. */
+    public readonly periodo: number,
+    /** Antes `categoria`. */
+    public readonly dimension: string | null,
     public readonly valor: number,
   ) {}
 }
