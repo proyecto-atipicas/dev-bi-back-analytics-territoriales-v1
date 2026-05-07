@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Header, Query } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ListarCandidatosUseCase } from '../../application/use-cases/listar-candidatos.use-case';
 import { ListarCorporacionesUseCase } from '../../application/use-cases/listar-corporaciones.use-case';
@@ -19,6 +19,7 @@ export class CatalogosController {
   ) {}
 
   @Get('corporaciones')
+  @Header('Cache-Control', 'public, max-age=300, stale-while-revalidate=60')
   @ApiOperation({ summary: 'Lista las corporaciones disponibles' })
   @ApiOkResponse({ type: CorporacionResponseDto, isArray: true })
   async getCorporaciones(): Promise<CorporacionResponseDto[]> {
@@ -27,6 +28,7 @@ export class CatalogosController {
   }
 
   @Get('partidos')
+  @Header('Cache-Control', 'public, max-age=300, stale-while-revalidate=60')
   @ApiOperation({ summary: 'Lista los partidos políticos (opcionalmente por corporación)' })
   @ApiOkResponse({ type: PartidoResponseDto, isArray: true })
   async getPartidos(@Query() query: ListarPartidosQueryDto): Promise<PartidoResponseDto[]> {
@@ -37,6 +39,7 @@ export class CatalogosController {
   }
 
   @Get('candidatos')
+  @Header('Cache-Control', 'public, max-age=300, stale-while-revalidate=60')
   @ApiOperation({ summary: 'Lista candidatos filtrando por corporación y/o partido' })
   @ApiOkResponse({ type: CandidatoResponseDto, isArray: true })
   async getCandidatos(@Query() query: ListarCandidatosQueryDto): Promise<CandidatoResponseDto[]> {

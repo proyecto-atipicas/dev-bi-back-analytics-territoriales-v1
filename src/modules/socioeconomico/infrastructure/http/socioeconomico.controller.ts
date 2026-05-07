@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Header, Query } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ListarDimensionesUseCase } from '../../application/use-cases/listar-categorias.use-case';
 import { ListarFuentesPublicacionesUseCase } from '../../application/use-cases/listar-fuentes-publicaciones.use-case';
@@ -32,6 +32,7 @@ export class SocioeconomicoController {
   ) {}
 
   @Get('fuentes-publicaciones')
+  @Header('Cache-Control', 'public, max-age=300, stale-while-revalidate=60')
   @ApiOperation({
     summary: 'Lista las fuentes (DNP TerriData, Externado e Indepaz, etc.) en data_publicaciones',
   })
@@ -41,6 +42,7 @@ export class SocioeconomicoController {
   }
 
   @Get('dimensiones')
+  @Header('Cache-Control', 'public, max-age=300, stale-while-revalidate=60')
   @ApiOperation({
     summary:
       'Lista las dimensiones disponibles para una fuente (opcionalmente filtrado por fuentePublicacion). Antes `/categorias`.',
@@ -51,6 +53,7 @@ export class SocioeconomicoController {
   }
 
   @Get('referencias')
+  @Header('Cache-Control', 'public, max-age=300, stale-while-revalidate=60')
   @ApiOperation({
     summary: 'Distinct de referencias para los filtros aplicados',
   })
@@ -60,6 +63,7 @@ export class SocioeconomicoController {
   }
 
   @Get('niveles-geograficos')
+  @Header('Cache-Control', 'public, max-age=300, stale-while-revalidate=60')
   @ApiOperation({
     summary:
       'Distinct de niveles geográficos (Departamental, Nacional, …) para los filtros aplicados',

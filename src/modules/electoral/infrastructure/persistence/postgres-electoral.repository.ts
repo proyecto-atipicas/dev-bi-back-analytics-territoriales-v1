@@ -342,11 +342,6 @@ export class PostgresElectoralRepository implements ElectoralRepositoryPort {
         AND ${condEnAB}
       GROUP BY e.${codigoCol}${esCandidato ? ', e.codigo_partido' : ''}
     `;
-    const metaRows = await this.db.query<ItemMetaRow>(metaSql, metaParams);
-    const metaMap = new Map<string, ItemMetaRow>();
-    for (const r of metaRows) {
-      metaMap.set(claveMeta(r.codigo, r.codigo_partido), r);
-    }
 
     // 2) Resultado por territorio + total elección. Granularidad por filtros.
     // Mantenemos los mismos índices $1..$5 para reutilizar los condA/condB.
@@ -367,7 +362,6 @@ export class PostgresElectoralRepository implements ElectoralRepositoryPort {
     let nivel: NivelTerritorial;
     let groupCols: string;
     let selectCols: string;
-    let nombreExpr: string;
     let joinClause = '';
 
     if (filtro.codigoMunicipio) {
@@ -380,7 +374,6 @@ export class PostgresElectoralRepository implements ElectoralRepositoryPort {
         e.codigo_puesto,
         COALESCE(MAX(p.nombre_puesto), e.codigo_puesto) AS nombre
       `;
-      nombreExpr = '';
       joinClause = `
         LEFT JOIN (
           SELECT codigo_departamento, codigo_municipio, codigo_puesto,
@@ -404,7 +397,6 @@ export class PostgresElectoralRepository implements ElectoralRepositoryPort {
         NULL::text AS codigo_puesto,
         COALESCE(MAX(m.nombre_municipio), e.codigo_municipio) AS nombre
       `;
-      nombreExpr = '';
       joinClause = `
         LEFT JOIN (
           SELECT codigo_departamento, codigo_municipio,
@@ -426,7 +418,6 @@ export class PostgresElectoralRepository implements ElectoralRepositoryPort {
         NULL::text AS codigo_puesto,
         COALESCE(MAX(d.nombre_departamento), e.codigo_departamento) AS nombre
       `;
-      nombreExpr = '';
       joinClause = `
         LEFT JOIN (
           SELECT codigo_departamento, MAX(nombre_departamento) AS nombre_departamento
@@ -436,7 +427,6 @@ export class PostgresElectoralRepository implements ElectoralRepositoryPort {
         ) d ON d.codigo_departamento = e.codigo_departamento
       `;
     }
-    void nombreExpr;
 
     const sql = `
       SELECT
@@ -452,7 +442,17 @@ export class PostgresElectoralRepository implements ElectoralRepositoryPort {
       ORDER BY total_eleccion DESC
     `;
 
-    const rows = await this.db.query<TerritorioComparativoRow>(sql, params);
+    // Las dos consultas son independientes — corren en paralelo para reducir
+    // latencia. La metadata sólo cruza con los códigos A/B; el desglose
+    // territorial recorre los filtros geográficos.
+    const [metaRows, rows] = await Promise.all([
+      this.db.query<ItemMetaRow>(metaSql, metaParams),
+      this.db.query<TerritorioComparativoRow>(sql, params),
+    ]);
+    const metaMap = new Map<string, ItemMetaRow>();
+    for (const r of metaRows) {
+      metaMap.set(claveMeta(r.codigo, r.codigo_partido), r);
+    }
 
     const territorios: TerritorioComparativo[] = rows.map((r) => {
       const totalA = toNum(r.total_a);

@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Controller, Get, Header, Param, Query } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ListarDepartamentosUseCase } from '../../application/use-cases/listar-departamentos.use-case';
 import { ListarMunicipiosUseCase } from '../../application/use-cases/listar-municipios.use-case';
@@ -17,6 +17,7 @@ export class GeoController {
   ) {}
 
   @Get('departamentos')
+  @Header('Cache-Control', 'public, max-age=300, stale-while-revalidate=60')
   @ApiOperation({ summary: 'Lista todos los departamentos disponibles' })
   @ApiOkResponse({ type: DepartamentoResponseDto, isArray: true })
   async getDepartamentos(): Promise<DepartamentoResponseDto[]> {
@@ -25,6 +26,7 @@ export class GeoController {
   }
 
   @Get('departamentos/:codigo/municipios')
+  @Header('Cache-Control', 'public, max-age=300, stale-while-revalidate=60')
   @ApiOperation({ summary: 'Lista los municipios de un departamento' })
   @ApiOkResponse({ type: MunicipioResponseDto, isArray: true })
   async getMunicipios(@Param('codigo') codigo: string): Promise<MunicipioResponseDto[]> {
@@ -33,6 +35,7 @@ export class GeoController {
   }
 
   @Get('puestos')
+  @Header('Cache-Control', 'public, max-age=300, stale-while-revalidate=60')
   @ApiOperation({ summary: 'Lista los puestos de votación de un municipio' })
   @ApiOkResponse({ type: PuestoResponseDto, isArray: true })
   async getPuestos(

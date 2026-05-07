@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Header, Query } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ListarCriteriosUseCase } from '../../application/use-cases/listar-criterios.use-case';
 import { ListarDimensionesUseCase } from '../../application/use-cases/listar-dimensiones.use-case';
@@ -31,6 +31,7 @@ export class PoblacionalController {
   ) {}
 
   @Get('dimensiones')
+  @Header('Cache-Control', 'public, max-age=300, stale-while-revalidate=60')
   @ApiOperation({ summary: 'Lista las dimensiones disponibles' })
   @ApiOkResponse({ type: String, isArray: true })
   async getDimensiones(): Promise<string[]> {
@@ -38,6 +39,7 @@ export class PoblacionalController {
   }
 
   @Get('resumen-dimensiones')
+  @Header('Cache-Control', 'public, max-age=300, stale-while-revalidate=60')
   @ApiOperation({
     summary: 'Resumen inicial: cada dimensión con la cantidad de referencias por fuente',
   })
@@ -48,6 +50,7 @@ export class PoblacionalController {
   }
 
   @Get('referencias')
+  @Header('Cache-Control', 'public, max-age=300, stale-while-revalidate=60')
   @ApiOperation({
     summary: 'Lista las referencias (opcionalmente filtradas por dimensión y/o fuente)',
   })
@@ -57,6 +60,7 @@ export class PoblacionalController {
   }
 
   @Get('criterios')
+  @Header('Cache-Control', 'public, max-age=300, stale-while-revalidate=60')
   @ApiOperation({
     summary:
       'Lista los criterios de una referencia (filtrable por dimensión / fuente / referencia)',

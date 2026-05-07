@@ -19,17 +19,23 @@ export class ObtenerDashboardHomeUseCase {
   ) {}
 
   async execute(filtro: FiltroElectoral): Promise<DashboardHome> {
+    // Filtro alineado con el VO `FiltroSocioeconomico` post-migración 2026-05
+    // (`dimension`/`periodo` reemplazan al esquema legacy `categoria`/`ano`).
     const filtroSocio = {
       fuente: FuenteSocioeconomica.MOE,
+      fuentePublicacion: null,
       codigoDepartamento: filtro.codigoDepartamento ?? null,
-      categoria: null,
-      ano: null,
+      dimension: null,
+      periodo: null,
+      referencia: null,
+      nivelGeografico: null,
     };
     const filtroPoblacional = {
       fuente: null,
       dimension: null,
       referencia: null,
       criterio: null,
+      criterios: null,
       anio: null,
       mes: null,
     };
