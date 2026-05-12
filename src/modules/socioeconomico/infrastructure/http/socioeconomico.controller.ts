@@ -10,7 +10,7 @@ import { ObtenerResumenDepartamentoUseCase } from '../../application/use-cases/o
 import { ObtenerSerieHistoricaUseCase } from '../../application/use-cases/obtener-serie-historica.use-case';
 import {
   FiltroSocioeconomicoQueryDto,
-  FuenteQueryDto,
+  FuentePublicacionQueryDto,
 } from './dtos/filtro-socioeconomico.query.dto';
 import { IndicadorDepartamentoResponseDto } from './dtos/indicador-departamento.response.dto';
 import { KpiSocioeconomicoResponseDto } from './dtos/kpi-socioeconomico.response.dto';
@@ -45,11 +45,11 @@ export class SocioeconomicoController {
   @Header('Cache-Control', 'public, max-age=300, stale-while-revalidate=60')
   @ApiOperation({
     summary:
-      'Lista las dimensiones disponibles para una fuente (opcionalmente filtrado por fuentePublicacion). Antes `/categorias`.',
+      'Lista las dimensiones disponibles en data_publicaciones (opcionalmente filtrado por fuentePublicacion). Antes `/categorias`.',
   })
   @ApiOkResponse({ type: String, isArray: true })
-  async getDimensiones(@Query() q: FuenteQueryDto): Promise<string[]> {
-    return this.listarDimensiones.execute(q.fuente, q.fuentePublicacion);
+  async getDimensiones(@Query() q: FuentePublicacionQueryDto): Promise<string[]> {
+    return this.listarDimensiones.execute(q.fuentePublicacion);
   }
 
   @Get('referencias')

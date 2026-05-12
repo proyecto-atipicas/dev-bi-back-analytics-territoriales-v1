@@ -17,8 +17,8 @@ export class ListarReferenciasUseCase {
   ) {}
 
   execute(filtro: FiltroSocioeconomico): Promise<string[]> {
-    // Sólo fuente + fuentePublicacion + dimension afectan la lista de referencias.
-    const key = `socio:referencias:${filtro.fuente}:${filtro.fuentePublicacion ?? '*'}:${filtro.dimension ?? '*'}`;
+    // Sólo fuentePublicacion + dimension afectan la lista de referencias.
+    const key = `socio:referencias:${filtro.fuentePublicacion ?? '*'}:${filtro.dimension ?? '*'}`;
     return this.cache.getOrSet(key, TTL_MS, () => this.repository.listarReferencias(filtro));
   }
 }

@@ -68,7 +68,7 @@ src/
     ├── geo/                 # Departamentos, municipios, puestos
     ├── catalogos/           # Corporaciones, partidos, candidatos
     ├── electoral/           # Resúmenes, rankings, mapas, comparativo territorial
-    ├── socioeconomico/      # KPIs MOE / Publicaciones, mapa de calor, serie
+    ├── socioeconomico/      # KPIs Publicaciones, mapa de calor, serie
     ├── poblacional/         # Encuestas
     └── home/                # Agregador del dashboard
 ```
@@ -132,16 +132,19 @@ Filtros transversales: `codigoCorporacion`, `codigoDepartamento`, `codigoMunicip
 | GET | `/electoral/resumen-corporaciones` | Tarjetas resumen por corporación |
 | GET | `/electoral/comparativo/territorial?tipo=partido\|candidato&codigoA=...&codigoB=...&codigoCorporacion=...` | Comparativo pairwise — totales por A y B, ítems con metadatos y desglose por territorio. Granularidad adaptativa: depto sin filtro → muni con depto → puesto con muni. |
 
-### Socioeconómico (`data_moe`, `data_publicaciones`)
-Parámetro obligatorio: `fuente=MOE|PUBLICACIONES`. Si `PUBLICACIONES`, opcional `fuentePublicacion=<DNP TerriData|Externado e Indepaz|...>`.
+### Socioeconómico (`data_publicaciones`)
+Filtro opcional: `fuentePublicacion=<DNP TerriData|Externado e Indepaz|Mapa de Riesgos|...>` para acotar a una fuente concreta dentro de la tabla.
 
 | Método | Ruta | Descripción |
 |---|---|---|
 | GET | `/socioeconomico/fuentes-publicaciones` | Lista DISTINCT de la columna `fuente` en `data_publicaciones` |
-| GET | `/socioeconomico/categorias?fuente=...&fuentePublicacion=...` | Categorías disponibles |
-| GET | `/socioeconomico/kpis?fuente=...&codigoDepartamento=...&categoria=...&ano=...` | KPIs (promedio, mín, máx) |
-| GET | `/socioeconomico/serie-historica?fuente=...&categoria=...` | Serie histórica anual |
-| GET | `/socioeconomico/por-departamento?fuente=...&categoria=...&ano=...` | Indicadores por departamento (mapa de calor + tabla) — último año si no se especifica `ano` |
+| GET | `/socioeconomico/dimensiones?fuentePublicacion=...` | Dimensiones disponibles |
+| GET | `/socioeconomico/referencias?dimension=...&fuentePublicacion=...` | Referencias disponibles |
+| GET | `/socioeconomico/niveles-geograficos?dimension=...&referencia=...&fuentePublicacion=...` | Niveles geográficos (Departamental/Nacional/…) |
+| GET | `/socioeconomico/kpis?codigoDepartamento=...&dimension=...&periodo=...` | KPIs (promedio, mín, máx) |
+| GET | `/socioeconomico/serie-historica?dimension=...` | Serie histórica anual |
+| GET | `/socioeconomico/por-departamento?dimension=...&periodo=...` | Indicadores por departamento (mapa de calor + tabla) — último período si no se especifica `periodo` |
+| GET | `/socioeconomico/resumen-departamento?codigoDepartamento=...` | Snapshot por dimensión (último valor + ranking + promedio nacional + período anterior) |
 
 ### Poblacional (`data_encuestas`)
 | Método | Ruta | Descripción |
@@ -166,5 +169,5 @@ Parámetro obligatorio: `fuente=MOE|PUBLICACIONES`. Si `PUBLICACIONES`, opcional
 - **Caché de catálogos:** los DISTINCT sobre `data_election` son costosos. `ListarCorporacionesUseCase`, `ListarPartidosUseCase` y `ListarDepartamentosUseCase` están envueltos con `TtlCacheService` (TTL 10 min, dedup de promesas en vuelo).
 - **Read-only:** este servicio no muta la BD.
 - **`participacionPct`:** se calcula en una sola pasada con `SUM() OVER ()` para evitar consultas dobles.
-- **Normalización de códigos:** `data_moe` / `data_publicaciones` usan códigos sin padding; el SQL aplica `LPAD(codigo_departamento, 2, '0')` para emparejarlos con los códigos del frontend.
+- **Normalización de códigos:** `data_publicaciones` usa códigos sin padding; el SQL aplica `LPAD(codigo_departamento, 2, '0')` para emparejarlos con los códigos del frontend.
 - **Identidad del puesto:** la tripleta `(codigo_departamento, codigo_municipio, codigo_puesto)`. Un mismo `codigo_puesto` se repite entre municipios — todas las queries de detalle y los conteos `DISTINCT` lo respetan.

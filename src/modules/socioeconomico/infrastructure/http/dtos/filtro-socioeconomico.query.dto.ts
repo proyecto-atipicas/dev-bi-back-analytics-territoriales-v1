@@ -1,17 +1,12 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsInt, IsOptional, IsString, Min } from 'class-validator';
 import { FiltroSocioeconomico } from '../../../domain/ports/socioeconomico.repository.port';
-import { FuenteSocioeconomica } from '../../../domain/value-objects/fuente-socioeconomica.vo';
 
 export class FiltroSocioeconomicoQueryDto {
-  @ApiProperty({ enum: FuenteSocioeconomica, description: 'Tabla a consultar' })
-  @IsEnum(FuenteSocioeconomica)
-  fuente!: FuenteSocioeconomica;
-
   @ApiPropertyOptional({
     description:
-      'Filtro por la columna `fuente` de data_publicaciones (DNP TerriData, Externado e Indepaz, etc.). Solo aplica cuando fuente=PUBLICACIONES.',
+      'Filtra por la columna `fuente` de data_publicaciones (DNP TerriData, Externado e Indepaz, Mapa de Riesgos, …).',
   })
   @IsOptional()
   @IsString()
@@ -48,7 +43,6 @@ export class FiltroSocioeconomicoQueryDto {
 
   toDomain(): FiltroSocioeconomico {
     return {
-      fuente: this.fuente,
       fuentePublicacion: this.fuentePublicacion ?? null,
       codigoDepartamento: this.codigoDepartamento ?? null,
       dimension: this.dimension ?? null,
@@ -59,13 +53,10 @@ export class FiltroSocioeconomicoQueryDto {
   }
 }
 
-export class FuenteQueryDto {
-  @ApiProperty({ enum: FuenteSocioeconomica })
-  @IsEnum(FuenteSocioeconomica)
-  fuente!: FuenteSocioeconomica;
-
+/** DTO acotado para `/dimensiones`, donde sólo aplica el filtro de fuente publicación. */
+export class FuentePublicacionQueryDto {
   @ApiPropertyOptional({
-    description: 'Filtro adicional por columna `fuente` de data_publicaciones',
+    description: 'Filtro por la columna `fuente` de data_publicaciones',
   })
   @IsOptional()
   @IsString()

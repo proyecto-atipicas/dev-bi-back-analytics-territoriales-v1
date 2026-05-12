@@ -9,10 +9,6 @@ import {
   FiltroSocioeconomico,
   SocioeconomicoRepositoryPort,
 } from '../../domain/ports/socioeconomico.repository.port';
-import {
-  fuenteATabla,
-  FuenteSocioeconomica,
-} from '../../domain/value-objects/fuente-socioeconomica.vo';
 
 interface DimensionRow {
   dimension: string;
@@ -61,93 +57,26 @@ interface ResumenDepartamentoRow {
   periodo_anterior: number | null;
 }
 
+const TABLA = 'data_publicaciones';
+
 const toNum = (v: string | null | undefined): number => (v == null ? 0 : Number(v));
 const toIntN = (v: string | null | undefined): number | null =>
   v == null ? null : parseInt(v, 10);
-
-/**
- * Mapeo de columnas físicas por fuente.
- *
- * `data_publicaciones` aplicó la migración 2026-05 (`dimension`, `periodo`,
- * `nivel_riesgo` + 4 columnas nuevas: `serie_estadistica`, `nivel_geografico`,
- * `referencia`, `observacion`).
- *
- * `data_moe` quedó en el esquema legacy (`categoria`, `ano`, `calificacion`)
- * y NO incorporó las columnas adicionales. Para evitar romper consultas en
- * tiempo de ejecución se proyectan NULLs y se cortocircuitan los endpoints
- * que dependen de campos inexistentes (referencias / niveles geográficos).
- */
-interface ColumnMap {
-  /** Nombre real de la columna o expresión NULL si no existe. */
-  dimension: string;
-  periodo: string;
-  nivelRiesgo: string;
-  serieEstadistica: string;
-  nivelGeografico: string;
-  referencia: string;
-  observacion: string;
-  /** `data_moe` no tiene columna `fuente`; queda como expresión NULL. */
-  fuente: string;
-  /** Tabla cuenta con la columna `referencia`. */
-  tieneReferencia: boolean;
-  /** Tabla cuenta con la columna `nivel_geografico`. */
-  tieneNivelGeografico: boolean;
-  /** Tabla cuenta con la columna `fuente` (sólo `data_publicaciones`). */
-  tieneFuente: boolean;
-}
-
-function columnMapPara(fuente: FuenteSocioeconomica): ColumnMap {
-  if (fuente === FuenteSocioeconomica.PUBLICACIONES) {
-    return {
-      dimension: 'dimension',
-      periodo: 'periodo',
-      nivelRiesgo: 'nivel_riesgo',
-      serieEstadistica: 'serie_estadistica',
-      nivelGeografico: 'nivel_geografico',
-      referencia: 'referencia',
-      observacion: 'observacion',
-      fuente: 'fuente',
-      tieneReferencia: true,
-      tieneNivelGeografico: true,
-      tieneFuente: true,
-    };
-  }
-  // MOE — esquema legacy. Para los campos inexistentes proyectamos NULL con cast
-  // explícito, así el resultset mantiene la misma forma que para PUBLICACIONES.
-  return {
-    dimension: 'categoria',
-    periodo: 'ano',
-    nivelRiesgo: 'calificacion',
-    serieEstadistica: 'NULL::varchar',
-    nivelGeografico: 'NULL::varchar',
-    referencia: 'NULL::text',
-    observacion: 'NULL::text',
-    fuente: 'NULL::varchar',
-    tieneReferencia: false,
-    tieneNivelGeografico: false,
-    tieneFuente: false,
-  };
-}
 
 @Injectable()
 export class PostgresSocioeconomicoRepository implements SocioeconomicoRepositoryPort {
   constructor(@Inject(DATABASE_PORT) private readonly db: DatabasePort) {}
 
-  async listarDimensiones(
-    fuente: FuenteSocioeconomica,
-    fuentePublicacion: string | null = null,
-  ): Promise<string[]> {
-    const tabla = fuenteATabla(fuente);
-    const cols = columnMapPara(fuente);
+  async listarDimensiones(fuentePublicacion: string | null = null): Promise<string[]> {
     const params: unknown[] = [];
-    let where = `${cols.dimension} IS NOT NULL`;
-    if (cols.tieneFuente && fuentePublicacion) {
+    let where = `dimension IS NOT NULL`;
+    if (fuentePublicacion) {
       params.push(fuentePublicacion);
-      where += ` AND ${cols.fuente} = $${params.length}`;
+      where += ` AND fuente = $${params.length}`;
     }
     const rows = await this.db.query<DimensionRow>(
-      `SELECT DISTINCT ${cols.dimension} AS dimension
-       FROM ${tabla}
+      `SELECT DISTINCT dimension AS dimension
+       FROM ${TABLA}
        WHERE ${where}
        ORDER BY dimension ASC`,
       params,
@@ -158,7 +87,7 @@ export class PostgresSocioeconomicoRepository implements SocioeconomicoRepositor
   async listarFuentesPublicaciones(): Promise<string[]> {
     const rows = await this.db.query<{ fuente: string }>(
       `SELECT DISTINCT fuente
-       FROM data_publicaciones
+       FROM ${TABLA}
        WHERE fuente IS NOT NULL
        ORDER BY fuente ASC`,
     );
@@ -166,26 +95,22 @@ export class PostgresSocioeconomicoRepository implements SocioeconomicoRepositor
   }
 
   async listarReferencias(filtro: FiltroSocioeconomico): Promise<string[]> {
-    const cols = columnMapPara(filtro.fuente);
-    if (!cols.tieneReferencia) return [];
-
-    const tabla = fuenteATabla(filtro.fuente);
-    const conds: string[] = [`${cols.referencia} IS NOT NULL`];
+    const conds: string[] = [`referencia IS NOT NULL`];
     const params: unknown[] = [];
     let idx = 1;
 
     if (filtro.dimension) {
       params.push(filtro.dimension);
-      conds.push(`${cols.dimension} = $${idx++}`);
+      conds.push(`dimension = $${idx++}`);
     }
-    if (cols.tieneFuente && filtro.fuentePublicacion) {
+    if (filtro.fuentePublicacion) {
       params.push(filtro.fuentePublicacion);
-      conds.push(`${cols.fuente} = $${idx++}`);
+      conds.push(`fuente = $${idx++}`);
     }
 
     const rows = await this.db.query<{ referencia: string }>(
-      `SELECT DISTINCT ${cols.referencia} AS referencia
-       FROM ${tabla}
+      `SELECT DISTINCT referencia
+       FROM ${TABLA}
        WHERE ${conds.join(' AND ')}
        ORDER BY referencia ASC`,
       params,
@@ -194,30 +119,26 @@ export class PostgresSocioeconomicoRepository implements SocioeconomicoRepositor
   }
 
   async listarNivelesGeograficos(filtro: FiltroSocioeconomico): Promise<string[]> {
-    const cols = columnMapPara(filtro.fuente);
-    if (!cols.tieneNivelGeografico) return [];
-
-    const tabla = fuenteATabla(filtro.fuente);
-    const conds: string[] = [`${cols.nivelGeografico} IS NOT NULL`];
+    const conds: string[] = [`nivel_geografico IS NOT NULL`];
     const params: unknown[] = [];
     let idx = 1;
 
     if (filtro.dimension) {
       params.push(filtro.dimension);
-      conds.push(`${cols.dimension} = $${idx++}`);
+      conds.push(`dimension = $${idx++}`);
     }
-    if (cols.tieneReferencia && filtro.referencia) {
+    if (filtro.referencia) {
       params.push(filtro.referencia);
-      conds.push(`${cols.referencia} = $${idx++}`);
+      conds.push(`referencia = $${idx++}`);
     }
-    if (cols.tieneFuente && filtro.fuentePublicacion) {
+    if (filtro.fuentePublicacion) {
       params.push(filtro.fuentePublicacion);
-      conds.push(`${cols.fuente} = $${idx++}`);
+      conds.push(`fuente = $${idx++}`);
     }
 
     const rows = await this.db.query<{ nivel_geografico: string }>(
-      `SELECT DISTINCT ${cols.nivelGeografico} AS nivel_geografico
-       FROM ${tabla}
+      `SELECT DISTINCT nivel_geografico
+       FROM ${TABLA}
        WHERE ${conds.join(' AND ')}
        ORDER BY nivel_geografico ASC`,
       params,
@@ -226,23 +147,21 @@ export class PostgresSocioeconomicoRepository implements SocioeconomicoRepositor
   }
 
   async obtenerKpis(filtro: FiltroSocioeconomico): Promise<KpiSocioeconomico[]> {
-    const tabla = fuenteATabla(filtro.fuente);
-    const cols = columnMapPara(filtro.fuente);
-    const { whereClause, params } = this.buildWhere(filtro, cols);
+    const { whereClause, params } = this.buildWhere(filtro);
 
     const sql = `
       SELECT
-        ${cols.dimension} AS dimension,
-        AVG(valor)        AS promedio,
-        MIN(valor)        AS minimo,
-        MAX(valor)        AS maximo,
-        COUNT(*)          AS cantidad,
-        MIN(${cols.periodo}) AS periodo_min,
-        MAX(${cols.periodo}) AS periodo_max
-      FROM ${tabla}
+        dimension,
+        AVG(valor)   AS promedio,
+        MIN(valor)   AS minimo,
+        MAX(valor)   AS maximo,
+        COUNT(*)     AS cantidad,
+        MIN(periodo) AS periodo_min,
+        MAX(periodo) AS periodo_max
+      FROM ${TABLA}
       WHERE ${whereClause}
-        AND ${cols.dimension} IS NOT NULL
-      GROUP BY ${cols.dimension}
+        AND dimension IS NOT NULL
+      GROUP BY dimension
       ORDER BY dimension ASC
     `;
     const rows = await this.db.query<KpiRow>(sql, params);
@@ -261,18 +180,16 @@ export class PostgresSocioeconomicoRepository implements SocioeconomicoRepositor
   }
 
   async obtenerSerieHistorica(filtro: FiltroSocioeconomico): Promise<SerieHistoricaPunto[]> {
-    const tabla = fuenteATabla(filtro.fuente);
-    const cols = columnMapPara(filtro.fuente);
-    const { whereClause, params } = this.buildWhere(filtro, cols);
+    const { whereClause, params } = this.buildWhere(filtro);
 
     const sql = `
-      SELECT ${cols.periodo} AS periodo,
-             ${cols.dimension} AS dimension,
+      SELECT periodo,
+             dimension,
              AVG(valor) AS valor
-      FROM ${tabla}
+      FROM ${TABLA}
       WHERE ${whereClause}
-        AND ${cols.periodo} IS NOT NULL
-      GROUP BY ${cols.periodo}, ${cols.dimension}
+        AND periodo IS NOT NULL
+      GROUP BY periodo, dimension
       ORDER BY periodo ASC, dimension ASC
     `;
     const rows = await this.db.query<SerieRow>(sql, params);
@@ -289,9 +206,6 @@ export class PostgresSocioeconomicoRepository implements SocioeconomicoRepositor
   }
 
   async obtenerPorDepartamento(filtro: FiltroSocioeconomico): Promise<IndicadorPorDepartamento[]> {
-    const tabla = fuenteATabla(filtro.fuente);
-    const cols = columnMapPara(filtro.fuente);
-
     // El WHERE base se construye sin filtro de período; el período se aplica
     // dentro del CTE para poder calcular MAX(periodo) sobre el resto de filtros.
     const conds: string[] = ['codigo_departamento IS NOT NULL'];
@@ -305,19 +219,19 @@ export class PostgresSocioeconomicoRepository implements SocioeconomicoRepositor
     }
     if (filtro.dimension) {
       params.push(filtro.dimension);
-      conds.push(`${cols.dimension} = $${idx++}`);
+      conds.push(`dimension = $${idx++}`);
     }
-    if (cols.tieneReferencia && filtro.referencia) {
+    if (filtro.referencia) {
       params.push(filtro.referencia);
-      conds.push(`${cols.referencia} = $${idx++}`);
+      conds.push(`referencia = $${idx++}`);
     }
-    if (cols.tieneNivelGeografico && filtro.nivelGeografico) {
+    if (filtro.nivelGeografico) {
       params.push(filtro.nivelGeografico);
-      conds.push(`${cols.nivelGeografico} = $${idx++}`);
+      conds.push(`nivel_geografico = $${idx++}`);
     }
-    if (cols.tieneFuente && filtro.fuentePublicacion) {
+    if (filtro.fuentePublicacion) {
       params.push(filtro.fuentePublicacion);
-      conds.push(`${cols.fuente} = $${idx++}`);
+      conds.push(`fuente = $${idx++}`);
     }
 
     let periodoFilter: string;
@@ -333,15 +247,15 @@ export class PostgresSocioeconomicoRepository implements SocioeconomicoRepositor
         SELECT
           LPAD(codigo_departamento, 2, '0') AS codigo_departamento,
           departamento,
-          ${cols.nivelRiesgo}     AS nivel_riesgo,
+          nivel_riesgo,
           valor,
-          ${cols.periodo}         AS periodo,
-          ${cols.dimension}       AS dimension,
-          ${cols.serieEstadistica} AS serie_estadistica,
-          ${cols.nivelGeografico}  AS nivel_geografico,
-          ${cols.referencia}       AS referencia,
-          ${cols.observacion}      AS observacion
-        FROM ${tabla}
+          periodo,
+          dimension,
+          serie_estadistica,
+          nivel_geografico,
+          referencia,
+          observacion
+        FROM ${TABLA}
         WHERE ${conds.join(' AND ')}
       )
       SELECT codigo_departamento, departamento, nivel_riesgo, valor, periodo, dimension,
@@ -377,25 +291,23 @@ export class PostgresSocioeconomicoRepository implements SocioeconomicoRepositor
     if (!filtro.codigoDepartamento) {
       return [];
     }
-    const tabla = fuenteATabla(filtro.fuente);
-    const cols = columnMapPara(filtro.fuente);
 
     // El depto va siempre en $1 (LPAD para manejar códigos sin padding).
     const params: unknown[] = [filtro.codigoDepartamento];
     let idx = 2;
 
     let baseFuenteCond = '';
-    if (cols.tieneFuente && filtro.fuentePublicacion) {
+    if (filtro.fuentePublicacion) {
       params.push(filtro.fuentePublicacion);
-      baseFuenteCond += `AND ${cols.fuente} = $${idx++}`;
+      baseFuenteCond += `AND fuente = $${idx++}`;
     }
-    if (cols.tieneReferencia && filtro.referencia) {
+    if (filtro.referencia) {
       params.push(filtro.referencia);
-      baseFuenteCond += ` AND ${cols.referencia} = $${idx++}`;
+      baseFuenteCond += ` AND referencia = $${idx++}`;
     }
-    if (cols.tieneNivelGeografico && filtro.nivelGeografico) {
+    if (filtro.nivelGeografico) {
       params.push(filtro.nivelGeografico);
-      baseFuenteCond += ` AND ${cols.nivelGeografico} = $${idx++}`;
+      baseFuenteCond += ` AND nivel_geografico = $${idx++}`;
     }
 
     // Estrategia:
@@ -409,15 +321,15 @@ export class PostgresSocioeconomicoRepository implements SocioeconomicoRepositor
         SELECT
           LPAD(codigo_departamento, 2, '0') AS codigo_departamento,
           departamento,
-          ${cols.dimension}    AS dimension,
-          ${cols.nivelRiesgo}  AS nivel_riesgo,
+          dimension,
+          nivel_riesgo,
           valor,
-          ${cols.periodo}      AS periodo
-        FROM ${tabla}
+          periodo
+        FROM ${TABLA}
         WHERE codigo_departamento IS NOT NULL
-          AND ${cols.dimension} IS NOT NULL
+          AND dimension IS NOT NULL
           AND valor IS NOT NULL
-          AND ${cols.periodo} IS NOT NULL
+          AND periodo IS NOT NULL
           ${baseFuenteCond}
       ),
       ult_periodo_dim AS (
@@ -497,39 +409,38 @@ export class PostgresSocioeconomicoRepository implements SocioeconomicoRepositor
     );
   }
 
-  private buildWhere(
-    filtro: FiltroSocioeconomico,
-    cols: ColumnMap,
-  ): { whereClause: string; params: unknown[] } {
+  private buildWhere(filtro: FiltroSocioeconomico): {
+    whereClause: string;
+    params: unknown[];
+  } {
     const conds: string[] = [];
     const params: unknown[] = [];
     let idx = 1;
 
     if (filtro.codigoDepartamento) {
-      // Compensamos códigos sin padding en data_moe / data_publicaciones ('1' vs '01').
+      // Compensamos códigos sin padding en data_publicaciones ('1' vs '01').
       params.push(filtro.codigoDepartamento);
       conds.push(`LPAD(codigo_departamento, 2, '0') = LPAD($${idx++}, 2, '0')`);
     }
     if (filtro.dimension) {
       params.push(filtro.dimension);
-      conds.push(`${cols.dimension} = $${idx++}`);
+      conds.push(`dimension = $${idx++}`);
     }
     if (filtro.periodo != null) {
       params.push(filtro.periodo);
-      conds.push(`${cols.periodo} = $${idx++}`);
+      conds.push(`periodo = $${idx++}`);
     }
-    if (cols.tieneReferencia && filtro.referencia) {
+    if (filtro.referencia) {
       params.push(filtro.referencia);
-      conds.push(`${cols.referencia} = $${idx++}`);
+      conds.push(`referencia = $${idx++}`);
     }
-    if (cols.tieneNivelGeografico && filtro.nivelGeografico) {
+    if (filtro.nivelGeografico) {
       params.push(filtro.nivelGeografico);
-      conds.push(`${cols.nivelGeografico} = $${idx++}`);
+      conds.push(`nivel_geografico = $${idx++}`);
     }
-    // El filtro por columna `fuente` solo aplica a data_publicaciones.
-    if (cols.tieneFuente && filtro.fuentePublicacion) {
+    if (filtro.fuentePublicacion) {
       params.push(filtro.fuentePublicacion);
-      conds.push(`${cols.fuente} = $${idx++}`);
+      conds.push(`fuente = $${idx++}`);
     }
 
     return {

@@ -17,7 +17,7 @@ export class ListarNivelesGeograficosUseCase {
   ) {}
 
   execute(filtro: FiltroSocioeconomico): Promise<string[]> {
-    const key = `socio:niveles:${filtro.fuente}:${filtro.fuentePublicacion ?? '*'}:${filtro.dimension ?? '*'}:${filtro.referencia ?? '*'}`;
+    const key = `socio:niveles:${filtro.fuentePublicacion ?? '*'}:${filtro.dimension ?? '*'}:${filtro.referencia ?? '*'}`;
     return this.cache.getOrSet(key, TTL_MS, () => this.repository.listarNivelesGeograficos(filtro));
   }
 }

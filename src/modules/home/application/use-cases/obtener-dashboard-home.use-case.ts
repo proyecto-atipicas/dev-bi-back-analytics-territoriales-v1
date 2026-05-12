@@ -5,7 +5,6 @@ import { ObtenerVotosPorDepartamentoUseCase } from '../../../electoral/applicati
 import { FiltroElectoral } from '../../../electoral/domain/value-objects/filtro-electoral.vo';
 import { ObtenerKpisPoblacionalUseCase } from '../../../poblacional/application/use-cases/obtener-kpis-poblacional.use-case';
 import { ObtenerKpisSocioeconomicosUseCase } from '../../../socioeconomico/application/use-cases/obtener-kpis.use-case';
-import { FuenteSocioeconomica } from '../../../socioeconomico/domain/value-objects/fuente-socioeconomica.vo';
 import { DashboardHome } from '../../domain/entities/dashboard-home.entity';
 
 @Injectable()
@@ -19,10 +18,9 @@ export class ObtenerDashboardHomeUseCase {
   ) {}
 
   async execute(filtro: FiltroElectoral): Promise<DashboardHome> {
-    // Filtro alineado con el VO `FiltroSocioeconomico` post-migración 2026-05
-    // (`dimension`/`periodo` reemplazan al esquema legacy `categoria`/`ano`).
+    // Filtro socioeconómico para el panel del Home: agrega data_publicaciones
+    // sin acotar fuente puntual; el panel del Home muestra el resumen general.
     const filtroSocio = {
-      fuente: FuenteSocioeconomica.MOE,
       fuentePublicacion: null,
       codigoDepartamento: filtro.codigoDepartamento ?? null,
       dimension: null,

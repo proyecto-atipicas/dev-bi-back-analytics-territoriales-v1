@@ -4,7 +4,6 @@ import {
   SOCIOECONOMICO_REPOSITORY,
   SocioeconomicoRepositoryPort,
 } from '../../domain/ports/socioeconomico.repository.port';
-import { FuenteSocioeconomica } from '../../domain/value-objects/fuente-socioeconomica.vo';
 
 const TTL_MS = 10 * 60 * 1000;
 
@@ -19,9 +18,9 @@ export class ListarDimensionesUseCase {
     private readonly cache: TtlCacheService,
   ) {}
 
-  execute(fuente: FuenteSocioeconomica, fuentePublicacion?: string | null): Promise<string[]> {
+  execute(fuentePublicacion?: string | null): Promise<string[]> {
     const fp = fuentePublicacion ?? null;
-    const key = `socio:dimensiones:${fuente}:${fp ?? '*'}`;
-    return this.cache.getOrSet(key, TTL_MS, () => this.repository.listarDimensiones(fuente, fp));
+    const key = `socio:dimensiones:${fp ?? '*'}`;
+    return this.cache.getOrSet(key, TTL_MS, () => this.repository.listarDimensiones(fp));
   }
 }

@@ -12,7 +12,7 @@ export class ListarFuentesQueryDto {
   tipificacion?: string;
 
   @ApiPropertyOptional({
-    description: 'Filtrar por nombre de la fuente (DNP TerriData, Externado e Indepaz, MOE, …)',
+    description: 'Filtrar por nombre de la fuente (DNP TerriData, Externado e Indepaz, Mapa de Riesgos, …)',
   })
   @IsOptional()
   @IsString()
