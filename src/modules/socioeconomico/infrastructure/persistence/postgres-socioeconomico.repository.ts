@@ -57,7 +57,7 @@ interface ResumenDepartamentoRow {
   periodo_anterior: number | null;
 }
 
-const TABLA = 'data_publicaciones';
+const TABLA = 'data_socioeconómica';
 
 const toNum = (v: string | null | undefined): number => (v == null ? 0 : Number(v));
 const toIntN = (v: string | null | undefined): number | null =>
@@ -418,7 +418,7 @@ export class PostgresSocioeconomicoRepository implements SocioeconomicoRepositor
     let idx = 1;
 
     if (filtro.codigoDepartamento) {
-      // Compensamos códigos sin padding en data_publicaciones ('1' vs '01').
+      // Compensamos códigos sin padding en data_socioeconómica ('1' vs '01').
       params.push(filtro.codigoDepartamento);
       conds.push(`LPAD(codigo_departamento, 2, '0') = LPAD($${idx++}, 2, '0')`);
     }

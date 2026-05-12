@@ -6,7 +6,7 @@ import { FiltroSocioeconomico } from '../../../domain/ports/socioeconomico.repos
 export class FiltroSocioeconomicoQueryDto {
   @ApiPropertyOptional({
     description:
-      'Filtra por la columna `fuente` de data_publicaciones (DNP TerriData, Externado e Indepaz, Mapa de Riesgos, …).',
+      'Filtra por la columna `fuente` de data_socioeconómica (DNP TerriData, Externado e Indepaz, Mapa de Riesgos, …).',
   })
   @IsOptional()
   @IsString()
@@ -56,7 +56,7 @@ export class FiltroSocioeconomicoQueryDto {
 /** DTO acotado para `/dimensiones`, donde sólo aplica el filtro de fuente publicación. */
 export class FuentePublicacionQueryDto {
   @ApiPropertyOptional({
-    description: 'Filtro por la columna `fuente` de data_publicaciones',
+    description: 'Filtro por la columna `fuente` de data_socioeconómica',
   })
   @IsOptional()
   @IsString()

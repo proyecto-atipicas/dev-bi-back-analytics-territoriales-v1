@@ -61,10 +61,10 @@ CREATE INDEX IF NOT EXISTS idx_dim_divipole_dep_mun_puesto
   ON dim_divipole (codigo_departamento, codigo_municipio, codigo_puesto);
 
 -- Socioeconómico
--- `data_publicaciones` aplicó la migración 2026-05 (dimension/periodo/nivel_riesgo + nuevos campos)
+-- `data_socioeconómica` aplicó la migración 2026-05 (dimension/periodo/nivel_riesgo + nuevos campos)
 -- y es la única tabla consultada por el módulo socioeconómico.
-CREATE INDEX IF NOT EXISTS idx_data_publicaciones_dep_dimension
-  ON data_publicaciones (codigo_departamento, dimension, periodo, fuente);
+CREATE INDEX IF NOT EXISTS idx_data_socioeconómica_dep_dimension
+  ON data_socioeconómica (codigo_departamento, dimension, periodo, fuente);
 
 -- ----------------------------------------------------------------------------
 -- Índice FUNCIONAL para `LPAD(codigo_departamento, 2, '0')`
@@ -72,36 +72,36 @@ CREATE INDEX IF NOT EXISTS idx_data_publicaciones_dep_dimension
 -- El repositorio socioeconómico normaliza códigos sin padding ('1' → '01')
 -- al filtrar:   WHERE LPAD(codigo_departamento, 2, '0') = LPAD($1, 2, '0')
 -- Sin este índice funcional el planner NO puede usar
--- `idx_data_publicaciones_dep_dimension` y termina haciendo seq scan completo
+-- `idx_data_socioeconómica_dep_dimension` y termina haciendo seq scan completo
 -- en cada filtro de depto (~835 filas hoy — pequeñas, pero crecerán; además
 -- el seq scan invalida el orden del índice compuesto).
-CREATE INDEX IF NOT EXISTS idx_data_publicaciones_dep_padded
-  ON data_publicaciones ((LPAD(codigo_departamento, 2, '0')));
+CREATE INDEX IF NOT EXISTS idx_data_socioeconómica_dep_padded
+  ON data_socioeconómica ((LPAD(codigo_departamento, 2, '0')));
 
--- Filtros nuevos: referencia y nivel_geografico (sólo data_publicaciones)
-CREATE INDEX IF NOT EXISTS idx_data_publicaciones_referencia
-  ON data_publicaciones (referencia);
+-- Filtros nuevos: referencia y nivel_geografico (sólo data_socioeconómica)
+CREATE INDEX IF NOT EXISTS idx_data_socioeconómica_referencia
+  ON data_socioeconómica (referencia);
 
-CREATE INDEX IF NOT EXISTS idx_data_publicaciones_nivel_geo
-  ON data_publicaciones (nivel_geografico);
+CREATE INDEX IF NOT EXISTS idx_data_socioeconómica_nivel_geo
+  ON data_socioeconómica (nivel_geografico);
 
 -- `fuente` se usa para acotar publicaciones (DNP TerriData, Externado e Indepaz…).
 -- También alimenta `/socioeconomico/fuentes-publicaciones`.
-CREATE INDEX IF NOT EXISTS idx_data_publicaciones_fuente
-  ON data_publicaciones (fuente);
+CREATE INDEX IF NOT EXISTS idx_data_socioeconómica_fuente
+  ON data_socioeconómica (fuente);
 
 -- Poblacional
-CREATE INDEX IF NOT EXISTS idx_data_encuestas_dim_ref
-  ON data_encuestas (dimension, referencia, anio);
+CREATE INDEX IF NOT EXISTS idx_data_impacto_poblacional_dim_ref
+  ON data_impacto_poblacional (dimension, referencia, anio);
 
 -- Filtros adicionales del módulo poblacional: fuente y criterio se usan en
 -- KPIs, serie histórica y radar. Sin índices, cada cambio de filtro
 -- redespacha el seq scan sobre la tabla.
-CREATE INDEX IF NOT EXISTS idx_data_encuestas_fuente_dim_ref
-  ON data_encuestas (fuente, dimension, referencia);
+CREATE INDEX IF NOT EXISTS idx_data_impacto_poblacional_fuente_dim_ref
+  ON data_impacto_poblacional (fuente, dimension, referencia);
 
-CREATE INDEX IF NOT EXISTS idx_data_encuestas_criterio
-  ON data_encuestas (criterio);
+CREATE INDEX IF NOT EXISTS idx_data_impacto_poblacional_criterio
+  ON data_impacto_poblacional (criterio);
 
 -- Fuentes (catálogo documental): filtros frecuentes en /fuentes y
 -- /fuentes/tipificaciones, /fuentes/nombres.
@@ -118,8 +118,8 @@ CREATE INDEX IF NOT EXISTS idx_data_fuentes_fuente
 -- ----------------------------------------------------------------------------
 ANALYZE data_election;
 ANALYZE dim_divipole;
-ANALYZE data_publicaciones;
-ANALYZE data_encuestas;
+ANALYZE data_socioeconómica;
+ANALYZE data_impacto_poblacional;
 ANALYZE data_fuentes;
 
 -- Verificar uso real con: EXPLAIN (ANALYZE, BUFFERS) <query>;

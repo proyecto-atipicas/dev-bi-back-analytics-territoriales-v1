@@ -34,7 +34,7 @@ export class SocioeconomicoController {
   @Get('fuentes-publicaciones')
   @Header('Cache-Control', 'public, max-age=300, stale-while-revalidate=60')
   @ApiOperation({
-    summary: 'Lista las fuentes (DNP TerriData, Externado e Indepaz, etc.) en data_publicaciones',
+    summary: 'Lista las fuentes (DNP TerriData, Externado e Indepaz, etc.) en data_socioeconómica',
   })
   @ApiOkResponse({ type: String, isArray: true })
   async getFuentesPublicaciones(): Promise<string[]> {
@@ -45,7 +45,7 @@ export class SocioeconomicoController {
   @Header('Cache-Control', 'public, max-age=300, stale-while-revalidate=60')
   @ApiOperation({
     summary:
-      'Lista las dimensiones disponibles en data_publicaciones (opcionalmente filtrado por fuentePublicacion). Antes `/categorias`.',
+      'Lista las dimensiones disponibles en data_socioeconómica (opcionalmente filtrado por fuentePublicacion). Antes `/categorias`.',
   })
   @ApiOkResponse({ type: String, isArray: true })
   async getDimensiones(@Query() q: FuentePublicacionQueryDto): Promise<string[]> {

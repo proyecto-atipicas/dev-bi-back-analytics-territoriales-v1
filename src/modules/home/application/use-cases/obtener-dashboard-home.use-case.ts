@@ -18,7 +18,7 @@ export class ObtenerDashboardHomeUseCase {
   ) {}
 
   async execute(filtro: FiltroElectoral): Promise<DashboardHome> {
-    // Filtro socioeconómico para el panel del Home: agrega data_publicaciones
+    // Filtro socioeconómico para el panel del Home: agrega data_socioeconómica
     // sin acotar fuente puntual; el panel del Home muestra el resumen general.
     const filtroSocio = {
       fuentePublicacion: null,

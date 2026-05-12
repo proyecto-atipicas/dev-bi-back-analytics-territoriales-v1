@@ -7,7 +7,7 @@ export const SOCIOECONOMICO_REPOSITORY = Symbol('SOCIOECONOMICO_REPOSITORY');
 
 export interface FiltroSocioeconomico {
   /**
-   * Filtro por la columna `fuente` de `data_publicaciones`
+   * Filtro por la columna `fuente` de `data_socioeconómica`
    * (ej: "DNP TerriData", "Externado e Indepaz", "Mapa de Riesgos").
    */
   fuentePublicacion?: string | null;
@@ -25,7 +25,7 @@ export interface FiltroSocioeconomico {
 export interface SocioeconomicoRepositoryPort {
   listarDimensiones(fuentePublicacion?: string | null): Promise<string[]>;
 
-  /** Lista los valores distintos de la columna `fuente` en `data_publicaciones`. */
+  /** Lista los valores distintos de la columna `fuente` en `data_socioeconómica`. */
   listarFuentesPublicaciones(): Promise<string[]>;
 
   /** Distinct de `referencia`. Acepta filtro por fuentePublicacion y dimensión. */

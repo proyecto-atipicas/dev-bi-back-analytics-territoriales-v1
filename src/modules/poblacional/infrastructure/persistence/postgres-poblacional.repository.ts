@@ -64,7 +64,7 @@ export class PostgresPoblacionalRepository implements PoblacionalRepositoryPort 
   async listarDimensiones(): Promise<string[]> {
     const rows = await this.db.query<DimensionRow>(
       `SELECT DISTINCT dimension
-       FROM data_encuestas
+       FROM data_impacto_poblacional
        WHERE dimension IS NOT NULL
        ORDER BY dimension ASC`,
     );
@@ -87,7 +87,7 @@ export class PostgresPoblacionalRepository implements PoblacionalRepositoryPort 
     }
     const rows = await this.db.query<ReferenciaRow>(
       `SELECT DISTINCT referencia
-       FROM data_encuestas
+       FROM data_impacto_poblacional
        WHERE ${where}
        ORDER BY referencia ASC`,
       params,
@@ -115,7 +115,7 @@ export class PostgresPoblacionalRepository implements PoblacionalRepositoryPort 
 
     const rows = await this.db.query<CriterioRow>(
       `SELECT DISTINCT criterio
-       FROM data_encuestas
+       FROM data_impacto_poblacional
        WHERE ${conds.join(' AND ')}
        ORDER BY criterio ASC`,
       params,
@@ -126,7 +126,7 @@ export class PostgresPoblacionalRepository implements PoblacionalRepositoryPort 
   async listarResumenDimensiones(): Promise<ResumenDimension[]> {
     const rows = await this.db.query<ResumenDimensionRow>(
       `SELECT dimension, fuente, COUNT(DISTINCT referencia) AS cantidad_referencias
-       FROM data_encuestas
+       FROM data_impacto_poblacional
        WHERE dimension IS NOT NULL
          AND referencia IS NOT NULL
        GROUP BY dimension, fuente
@@ -165,7 +165,7 @@ export class PostgresPoblacionalRepository implements PoblacionalRepositoryPort 
         MIN(reporte) AS minimo,
         MAX(reporte) AS maximo,
         COUNT(*)     AS cantidad
-      FROM data_encuestas
+      FROM data_impacto_poblacional
       WHERE ${whereClause}
         AND dimension IS NOT NULL
       GROUP BY dimension, referencia
@@ -189,7 +189,7 @@ export class PostgresPoblacionalRepository implements PoblacionalRepositoryPort 
     const { whereClause, params } = this.buildWhere(filtro);
     const sql = `
       SELECT anio, mes, dimension, criterio, AVG(reporte) AS valor
-      FROM data_encuestas
+      FROM data_impacto_poblacional
       WHERE ${whereClause}
         AND anio IS NOT NULL
       GROUP BY anio, mes, dimension, criterio
@@ -256,7 +256,7 @@ export class PostgresPoblacionalRepository implements PoblacionalRepositoryPort 
     const sql = `
       WITH ultimo AS (
         SELECT de.anio, de.mes
-        FROM data_encuestas de
+        FROM data_impacto_poblacional de
         WHERE ${whereBase}
           AND de.anio IS NOT NULL
         ORDER BY de.anio DESC, de.mes DESC NULLS LAST
@@ -266,7 +266,7 @@ export class PostgresPoblacionalRepository implements PoblacionalRepositoryPort 
              AVG(de.reporte) AS valor,
              MIN(u.anio)     AS anio,
              MIN(u.mes)      AS mes
-      FROM data_encuestas de
+      FROM data_impacto_poblacional de
       CROSS JOIN ultimo u
       WHERE ${whereBase}${condCriterio}
         AND de.anio = u.anio
