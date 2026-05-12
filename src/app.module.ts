@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { CatalogosModule } from './modules/catalogos/catalogos.module';
 import { ElectoralModule } from './modules/electoral/electoral.module';
+import { FuentesModule } from './modules/fuentes/fuentes.module';
 import { GeoModule } from './modules/geo/geo.module';
 import { HealthModule } from './modules/health/health.module';
 import { HomeModule } from './modules/home/home.module';
@@ -29,6 +30,7 @@ import { DatabaseModule } from './shared/database/database.module';
     ElectoralModule,
     SocioeconomicoModule,
     PoblacionalModule,
+    FuentesModule,
     HomeModule,
   ],
 })
