@@ -4,6 +4,7 @@ import { ObtenerRankingCandidatosUseCase } from './application/use-cases/obtener
 import { ObtenerRankingPartidosUseCase } from './application/use-cases/obtener-ranking-partidos.use-case';
 import { ObtenerResumenPorCorporacionUseCase } from './application/use-cases/obtener-resumen-por-corporacion.use-case';
 import { ObtenerResumenUseCase } from './application/use-cases/obtener-resumen.use-case';
+import { ObtenerTerritoriosGanadosUseCase } from './application/use-cases/obtener-territorios-ganados.use-case';
 import { ObtenerVotosPorDepartamentoUseCase } from './application/use-cases/obtener-votos-por-departamento.use-case';
 import { ObtenerVotosPorMunicipioUseCase } from './application/use-cases/obtener-votos-por-municipio.use-case';
 import { ObtenerVotosPorPuestoUseCase } from './application/use-cases/obtener-votos-por-puesto.use-case';
@@ -22,6 +23,7 @@ import { PostgresElectoralRepository } from './infrastructure/persistence/postgr
     ObtenerRankingCandidatosUseCase,
     ObtenerResumenPorCorporacionUseCase,
     CompararTerritorialUseCase,
+    ObtenerTerritoriosGanadosUseCase,
     {
       provide: ELECTORAL_REPOSITORY,
       useClass: PostgresElectoralRepository,

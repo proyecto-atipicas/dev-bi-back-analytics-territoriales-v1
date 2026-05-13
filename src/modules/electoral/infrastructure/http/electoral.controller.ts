@@ -5,6 +5,7 @@ import { ObtenerRankingCandidatosUseCase } from '../../application/use-cases/obt
 import { ObtenerRankingPartidosUseCase } from '../../application/use-cases/obtener-ranking-partidos.use-case';
 import { ObtenerResumenPorCorporacionUseCase } from '../../application/use-cases/obtener-resumen-por-corporacion.use-case';
 import { ObtenerResumenUseCase } from '../../application/use-cases/obtener-resumen.use-case';
+import { ObtenerTerritoriosGanadosUseCase } from '../../application/use-cases/obtener-territorios-ganados.use-case';
 import { ObtenerVotosPorDepartamentoUseCase } from '../../application/use-cases/obtener-votos-por-departamento.use-case';
 import { ObtenerVotosPorMunicipioUseCase } from '../../application/use-cases/obtener-votos-por-municipio.use-case';
 import { ObtenerVotosPorPuestoUseCase } from '../../application/use-cases/obtener-votos-por-puesto.use-case';
@@ -14,10 +15,12 @@ import {
   FiltroElectoralConLimiteQueryDto,
   FiltroElectoralQueryDto,
 } from './dtos/filtro-electoral.query.dto';
+import { FiltroTerritoriosGanadosQueryDto } from './dtos/filtro-territorios-ganados.query.dto';
 import { RankingCandidatoResponseDto } from './dtos/ranking-candidato.response.dto';
 import { RankingPartidoResponseDto } from './dtos/ranking-partido.response.dto';
 import { ResumenCorporacionResponseDto } from './dtos/resumen-corporacion.response.dto';
 import { ResumenElectoralResponseDto } from './dtos/resumen-electoral.response.dto';
+import { TerritoriosGanadosResponseDto } from './dtos/territorios-ganados.response.dto';
 import { VotosDepartamentoResponseDto } from './dtos/votos-departamento.response.dto';
 import { VotosMunicipioResponseDto } from './dtos/votos-municipio.response.dto';
 import { VotosPuestoResponseDto } from './dtos/votos-puesto.response.dto';
@@ -34,6 +37,7 @@ export class ElectoralController {
     private readonly obtenerRankingCandidatos: ObtenerRankingCandidatosUseCase,
     private readonly obtenerResumenCorp: ObtenerResumenPorCorporacionUseCase,
     private readonly compararTerritorial: CompararTerritorialUseCase,
+    private readonly obtenerTerritoriosGanados: ObtenerTerritoriosGanadosUseCase,
   ) {}
 
   @Get('resumen')
@@ -101,6 +105,19 @@ export class ElectoralController {
   ): Promise<ResumenCorporacionResponseDto[]> {
     const result = await this.obtenerResumenCorp.execute(q.toDomain());
     return result.map(ResumenCorporacionResponseDto.fromDomain);
+  }
+
+  @Get('territorios-ganados')
+  @ApiOperation({
+    summary:
+      'Lista los territorios (departamentos o municipios) donde un partido o candidato fue el más votado, dentro de una corporación.',
+  })
+  @ApiOkResponse({ type: TerritoriosGanadosResponseDto })
+  async getTerritoriosGanados(
+    @Query() q: FiltroTerritoriosGanadosQueryDto,
+  ): Promise<TerritoriosGanadosResponseDto> {
+    const result = await this.obtenerTerritoriosGanados.execute(q.toDomain());
+    return TerritoriosGanadosResponseDto.fromDomain(result);
   }
 
   @Get('comparativo/territorial')

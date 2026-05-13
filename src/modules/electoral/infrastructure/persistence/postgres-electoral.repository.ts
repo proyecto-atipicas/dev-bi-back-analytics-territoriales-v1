@@ -12,12 +12,17 @@ import { RankingCandidato } from '../../domain/entities/ranking-candidato.entity
 import { RankingPartido } from '../../domain/entities/ranking-partido.entity';
 import { ResumenCorporacion } from '../../domain/entities/resumen-corporacion.entity';
 import { ResumenElectoral } from '../../domain/entities/resumen-electoral.entity';
+import {
+  TerritorioGanado,
+  TerritoriosGanadosResultado,
+} from '../../domain/entities/territorios-ganados.entity';
 import { VotosPorDepartamento } from '../../domain/entities/votos-departamento.entity';
 import { VotosPorMunicipio } from '../../domain/entities/votos-municipio.entity';
 import { VotosPorPuesto } from '../../domain/entities/votos-puesto.entity';
 import { ElectoralRepositoryPort } from '../../domain/ports/electoral.repository.port';
 import { FiltroComparativoTerritorial } from '../../domain/value-objects/filtro-comparativo-territorial.vo';
 import { FiltroElectoral } from '../../domain/value-objects/filtro-electoral.vo';
+import { FiltroTerritoriosGanados } from '../../domain/value-objects/filtro-territorios-ganados.vo';
 import { buildFiltroElectoralSql } from './filtro-electoral.sql';
 
 interface ResumenRow {
@@ -90,6 +95,20 @@ interface TerritorioComparativoRow {
   total_a: string | null;
   total_b: string | null;
   total_eleccion: string | null;
+}
+
+interface SeleccionadoMetaRow {
+  nombre: string | null;
+  codigo_partido: string | null;
+  nombre_partido: string | null;
+}
+
+interface TerritorioGanadoRow {
+  codigo_departamento: string;
+  codigo_municipio: string | null;
+  nombre: string | null;
+  total_votos_territorio: string | null;
+  votos_seleccionado: string | null;
 }
 
 const toInt = (v: string | null | undefined): number => (v == null ? 0 : parseInt(v, 10));
@@ -517,6 +536,195 @@ export class PostgresElectoralRepository implements ElectoralRepositoryPort {
       buildItem(filtro.codigoA, filtro.codigoPartidoA, totalA, totalTerritoriosA),
       buildItem(filtro.codigoB, filtro.codigoPartidoB, totalB, totalTerritoriosB),
       totalEleccion,
+      territorios,
+    );
+  }
+
+  async obtenerTerritoriosGanados(
+    filtro: FiltroTerritoriosGanados,
+  ): Promise<TerritoriosGanadosResultado> {
+    const esCandidato = filtro.tipo === 'candidato';
+    const codigoCol = esCandidato ? 'codigo_candidato' : 'codigo_partido';
+    const nombreCol = esCandidato ? 'nombre_candidato' : 'nombre_partido';
+
+    // Identidad del seleccionado: para partido basta el código; para candidato
+    // es la tupla (codigo_candidato, codigo_partido) porque el código se reinicia
+    // por partido.
+    const condSeleccionado = esCandidato
+      ? `(e.codigo_candidato = $2 AND e.codigo_partido = $3)`
+      : `e.codigo_partido = $2`;
+
+    const params: unknown[] = [filtro.codigoCorporacion, filtro.codigo];
+    if (esCandidato) {
+      params.push(filtro.codigoPartido);
+    }
+
+    // 1) Metadata del seleccionado: nombre + partido asociado.
+    const metaSql = `
+      SELECT
+        MAX(e.${nombreCol})    AS nombre,
+        MAX(e.codigo_partido)  AS codigo_partido,
+        MAX(e.nombre_partido)  AS nombre_partido
+      FROM data_election e
+      WHERE e.codigo_corporacion = $1
+        AND e.${codigoCol} IS NOT NULL
+        AND ${condSeleccionado}
+    `;
+
+    // 2) Por territorio: total de la elección, votos del seleccionado y
+    //    votos del más votado. Se queda con los territorios donde el
+    //    seleccionado fue el ganador (es decir, votos_seleccionado >= max_votos).
+    //    Empates a favor del seleccionado se cuentan como ganados.
+    const nivelDepartamento = filtro.nivel === 'departamento';
+    const groupCols = nivelDepartamento
+      ? 'e.codigo_departamento'
+      : 'e.codigo_departamento, e.codigo_municipio';
+    const selectCols = nivelDepartamento
+      ? `e.codigo_departamento,
+         NULL::text AS codigo_municipio,
+         COALESCE(MAX(d.nombre_departamento), e.codigo_departamento) AS nombre`
+      : `e.codigo_departamento,
+         e.codigo_municipio,
+         COALESCE(MAX(m.nombre_municipio), e.codigo_municipio) AS nombre`;
+    const joinClause = nivelDepartamento
+      ? `LEFT JOIN (
+           SELECT codigo_departamento, MAX(nombre_departamento) AS nombre_departamento
+           FROM dim_divipole
+           WHERE codigo_departamento IS NOT NULL
+           GROUP BY codigo_departamento
+         ) d ON d.codigo_departamento = e.codigo_departamento`
+      : `LEFT JOIN (
+           SELECT codigo_departamento, codigo_municipio,
+                  MAX(nombre_municipio) AS nombre_municipio
+           FROM dim_divipole
+           WHERE codigo_municipio IS NOT NULL
+           GROUP BY codigo_departamento, codigo_municipio
+         ) m
+           ON m.codigo_departamento = e.codigo_departamento
+          AND m.codigo_municipio    = e.codigo_municipio`;
+
+    // Para identificar al "más votado" por territorio agrupamos primero por
+    // (territorio, codigo_partido/codigo_candidato) y luego sacamos el máximo
+    // por territorio. El votos_seleccionado se calcula a partir del mismo
+    // agregado para garantizar consistencia.
+    const ganadorGroup = esCandidato
+      ? 'e.codigo_departamento' +
+        (nivelDepartamento ? '' : ', e.codigo_municipio') +
+        ', e.codigo_candidato, e.codigo_partido'
+      : 'e.codigo_departamento' +
+        (nivelDepartamento ? '' : ', e.codigo_municipio') +
+        ', e.codigo_partido';
+
+    const sql = `
+      WITH agreg AS (
+        SELECT
+          e.codigo_departamento,
+          ${nivelDepartamento ? 'NULL::text AS codigo_municipio,' : 'e.codigo_municipio,'}
+          ${esCandidato ? 'e.codigo_candidato AS codigo,\n          e.codigo_partido,' : 'e.codigo_partido AS codigo,'}
+          COALESCE(SUM(e.total_votos), 0) AS votos
+        FROM data_election e
+        WHERE e.codigo_corporacion = $1
+          AND e.${codigoCol} IS NOT NULL
+          AND e.codigo_departamento IS NOT NULL
+          ${nivelDepartamento ? '' : 'AND e.codigo_municipio IS NOT NULL'}
+        GROUP BY ${ganadorGroup}
+      ),
+      por_terr AS (
+        SELECT
+          codigo_departamento,
+          codigo_municipio,
+          MAX(votos) AS max_votos,
+          COALESCE(
+            SUM(CASE WHEN ${
+              esCandidato ? '(codigo = $2 AND codigo_partido = $3)' : 'codigo = $2'
+            } THEN votos END),
+            0
+          ) AS votos_seleccionado
+        FROM agreg
+        GROUP BY codigo_departamento, codigo_municipio
+      )
+      SELECT
+        ${selectCols},
+        COALESCE(SUM(e.total_votos), 0) AS total_votos_territorio,
+        MAX(por_terr.votos_seleccionado) AS votos_seleccionado
+      FROM data_election e
+      ${joinClause}
+      JOIN por_terr
+        ON por_terr.codigo_departamento = e.codigo_departamento
+       AND ${
+         nivelDepartamento
+           ? 'por_terr.codigo_municipio IS NULL'
+           : 'por_terr.codigo_municipio = e.codigo_municipio'
+       }
+      WHERE e.codigo_corporacion = $1
+        AND e.codigo_departamento IS NOT NULL
+        ${nivelDepartamento ? '' : 'AND e.codigo_municipio IS NOT NULL'}
+        AND por_terr.votos_seleccionado > 0
+        AND por_terr.votos_seleccionado >= por_terr.max_votos
+      GROUP BY ${groupCols}
+      ORDER BY votos_seleccionado DESC
+    `;
+
+    const [metaRow, rows] = await Promise.all([
+      this.db.queryOne<SeleccionadoMetaRow>(metaSql, params),
+      this.db.query<TerritorioGanadoRow>(sql, params),
+    ]);
+
+    const territorios: TerritorioGanado[] = rows.map((r) => {
+      const totalTerritorio = toNum(r.total_votos_territorio);
+      const votosSel = toNum(r.votos_seleccionado);
+      const participacionPct = totalTerritorio > 0 ? (votosSel / totalTerritorio) * 100 : 0;
+      const diferencia = totalTerritorio - votosSel;
+      return new TerritorioGanado(
+        r.codigo_departamento,
+        r.codigo_municipio,
+        r.nombre ?? '',
+        totalTerritorio,
+        votosSel,
+        Number(participacionPct.toFixed(2)),
+        diferencia,
+      );
+    });
+
+    // Totales del ámbito (corporación). Se calculan en una sola pasada
+    // sobre la tabla.
+    const totalesSql = `
+      SELECT
+        COALESCE(SUM(e.total_votos), 0) AS total_eleccion,
+        COALESCE(
+          SUM(CASE WHEN ${condSeleccionado} THEN e.total_votos END),
+          0
+        ) AS total_seleccionado
+      FROM data_election e
+      WHERE e.codigo_corporacion = $1
+    `;
+    const totales = await this.db.queryOne<{
+      total_eleccion: string | null;
+      total_seleccionado: string | null;
+    }>(totalesSql, params);
+
+    const totalVotosEleccion = toNum(totales?.total_eleccion ?? null);
+    const votosSeleccionado = toNum(totales?.total_seleccionado ?? null);
+    const participacionPct =
+      totalVotosEleccion > 0 ? (votosSeleccionado / totalVotosEleccion) * 100 : 0;
+
+    const nombre = metaRow?.nombre ?? filtro.codigo;
+    const codigoPartido = esCandidato
+      ? (filtro.codigoPartido ?? metaRow?.codigo_partido ?? null)
+      : filtro.codigo;
+    const nombrePartido = esCandidato ? (metaRow?.nombre_partido ?? null) : nombre;
+
+    return new TerritoriosGanadosResultado(
+      filtro.tipo,
+      filtro.nivel,
+      filtro.codigo,
+      nombre,
+      codigoPartido,
+      nombrePartido,
+      totalVotosEleccion,
+      votosSeleccionado,
+      Number(participacionPct.toFixed(2)),
+      territorios.length,
       territorios,
     );
   }
