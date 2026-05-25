@@ -35,6 +35,12 @@ export class ResumenDepartamentoDimensionResponseDto {
   @ApiProperty({ example: 2022, nullable: true })
   periodoAnterior!: number | null;
 
+  @ApiProperty({ nullable: true })
+  observacion!: string | null;
+
+  @ApiProperty({ nullable: true })
+  unidadMedida!: string | null;
+
   static fromDomain(r: ResumenDepartamentoDimension): ResumenDepartamentoDimensionResponseDto {
     return {
       codigoDepartamento: r.codigoDepartamento,
@@ -48,6 +54,8 @@ export class ResumenDepartamentoDimensionResponseDto {
       promedioNacional: r.promedioNacional,
       valorPeriodoAnterior: r.valorPeriodoAnterior,
       periodoAnterior: r.periodoAnterior,
+      observacion: r.observacion,
+      unidadMedida: r.unidadMedida,
     };
   }
 }

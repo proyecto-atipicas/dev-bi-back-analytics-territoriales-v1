@@ -26,5 +26,9 @@ export class ResumenDepartamentoDimension {
     /** Valor del depto en el período inmediatamente anterior, si existe. */
     public readonly valorPeriodoAnterior: number | null,
     public readonly periodoAnterior: number | null,
+    /** Observación del último reporte del depto en esta dimensión. */
+    public readonly observacion: string | null = null,
+    /** Unidad de medida del valor para formateo en el frontend. */
+    public readonly unidadMedida: string | null = null,
   ) {}
 }

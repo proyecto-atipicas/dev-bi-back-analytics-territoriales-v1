@@ -20,6 +20,12 @@ export interface FiltroSocioeconomico {
   referencia?: string | null;
   /** Filtra por `nivel_geografico` (Departamental/Nacional/…). */
   nivelGeografico?: string | null;
+  /**
+   * Subconjunto de `serie_estadistica` que el cliente desea inspeccionar.
+   * Sólo aplica en consultas analíticas (tendencia, por-departamento); los
+   * endpoints de catálogos lo ignoran.
+   */
+  seriesEstadisticas?: string[] | null;
 }
 
 export interface SocioeconomicoRepositoryPort {

@@ -14,6 +14,11 @@ export class IndicadorDepartamentoResponseDto {
   nivelGeografico!: string | null;
   @ApiProperty({ nullable: true }) referencia!: string | null;
   @ApiProperty({ nullable: true }) observacion!: string | null;
+  @ApiProperty({
+    nullable: true,
+    description: 'porcentaje | monetario | índice | tasa | cantidad | otro',
+  })
+  unidadMedida!: string | null;
 
   static fromDomain(i: IndicadorPorDepartamento): IndicadorDepartamentoResponseDto {
     return {
@@ -27,6 +32,7 @@ export class IndicadorDepartamentoResponseDto {
       nivelGeografico: i.nivelGeografico,
       referencia: i.referencia,
       observacion: i.observacion,
+      unidadMedida: i.unidadMedida,
     };
   }
 }

@@ -17,5 +17,7 @@ export class IndicadorPorDepartamento {
     public readonly referencia: string | null = null,
     /** Nuevo: observación libre. */
     public readonly observacion: string | null = null,
+    /** Nuevo (migración 2026-05): unidad de medida (porcentaje, monetario, índice, tasa, cantidad…). */
+    public readonly unidadMedida: string | null = null,
   ) {}
 }

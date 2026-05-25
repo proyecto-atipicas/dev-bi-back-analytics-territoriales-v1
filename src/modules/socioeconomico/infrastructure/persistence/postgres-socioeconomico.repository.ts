@@ -27,7 +27,10 @@ interface KpiRow {
 interface SerieRow {
   periodo: number | null;
   dimension: string | null;
+  serie_estadistica: string | null;
   valor: string | null;
+  observacion: string | null;
+  unidad_medida: string | null;
 }
 
 interface PorDepartamentoRow {
@@ -41,6 +44,7 @@ interface PorDepartamentoRow {
   nivel_geografico: string | null;
   referencia: string | null;
   observacion: string | null;
+  unidad_medida: string | null;
 }
 
 interface ResumenDepartamentoRow {
@@ -55,6 +59,8 @@ interface ResumenDepartamentoRow {
   promedio_nacional: string | null;
   valor_periodo_anterior: string | null;
   periodo_anterior: number | null;
+  observacion: string | null;
+  unidad_medida: string | null;
 }
 
 const TABLA = 'data_socioeconómica';
@@ -182,15 +188,40 @@ export class PostgresSocioeconomicoRepository implements SocioeconomicoRepositor
   async obtenerSerieHistorica(filtro: FiltroSocioeconomico): Promise<SerieHistoricaPunto[]> {
     const { whereClause, params } = this.buildWhere(filtro);
 
+    // Agrupamos por (periodo, dimension, serie_estadistica) para no colapsar
+    // criterios cualitativamente distintos al promediarlos. El frontend
+    // decide si traza una línea por dimensión o por serie.
+    //
+    // La observación y unidad_medida se toman del registro más reciente
+    // (MAX por id) que comparte la tripleta agrupadora, de modo que el
+    // tooltip refleje la nota del dato efectivamente graficado.
     const sql = `
-      SELECT periodo,
-             dimension,
-             AVG(valor) AS valor
-      FROM ${TABLA}
+      SELECT
+        periodo,
+        dimension,
+        serie_estadistica,
+        AVG(valor) AS valor,
+        (SELECT observacion
+           FROM ${TABLA} t2
+          WHERE t2.periodo = t.periodo
+            AND (t2.dimension IS NOT DISTINCT FROM t.dimension)
+            AND (t2.serie_estadistica IS NOT DISTINCT FROM t.serie_estadistica)
+            AND t2.observacion IS NOT NULL
+          ORDER BY t2.id DESC
+          LIMIT 1) AS observacion,
+        (SELECT unidad_medida
+           FROM ${TABLA} t2
+          WHERE t2.periodo = t.periodo
+            AND (t2.dimension IS NOT DISTINCT FROM t.dimension)
+            AND (t2.serie_estadistica IS NOT DISTINCT FROM t.serie_estadistica)
+            AND t2.unidad_medida IS NOT NULL
+          ORDER BY t2.id DESC
+          LIMIT 1) AS unidad_medida
+      FROM ${TABLA} t
       WHERE ${whereClause}
         AND periodo IS NOT NULL
-      GROUP BY periodo, dimension
-      ORDER BY periodo ASC, dimension ASC
+      GROUP BY periodo, dimension, serie_estadistica
+      ORDER BY periodo ASC, dimension ASC, serie_estadistica ASC
     `;
     const rows = await this.db.query<SerieRow>(sql, params);
     return rows
@@ -201,6 +232,9 @@ export class PostgresSocioeconomicoRepository implements SocioeconomicoRepositor
             r.periodo as number,
             r.dimension,
             Number(toNum(r.valor).toFixed(2)),
+            r.observacion,
+            r.unidad_medida,
+            r.serie_estadistica,
           ),
       );
   }
@@ -233,6 +267,10 @@ export class PostgresSocioeconomicoRepository implements SocioeconomicoRepositor
       params.push(filtro.fuentePublicacion);
       conds.push(`fuente = $${idx++}`);
     }
+    if (filtro.seriesEstadisticas && filtro.seriesEstadisticas.length > 0) {
+      params.push(filtro.seriesEstadisticas);
+      conds.push(`serie_estadistica = ANY($${idx++}::text[])`);
+    }
 
     let periodoFilter: string;
     if (filtro.periodo != null) {
@@ -254,12 +292,13 @@ export class PostgresSocioeconomicoRepository implements SocioeconomicoRepositor
           serie_estadistica,
           nivel_geografico,
           referencia,
-          observacion
+          observacion,
+          unidad_medida
         FROM ${TABLA}
         WHERE ${conds.join(' AND ')}
       )
       SELECT codigo_departamento, departamento, nivel_riesgo, valor, periodo, dimension,
-             serie_estadistica, nivel_geografico, referencia, observacion
+             serie_estadistica, nivel_geografico, referencia, observacion, unidad_medida
       FROM filtered
       WHERE ${periodoFilter}
       ORDER BY valor DESC NULLS LAST
@@ -281,6 +320,7 @@ export class PostgresSocioeconomicoRepository implements SocioeconomicoRepositor
             r.nivel_geografico,
             r.referencia,
             r.observacion,
+            r.unidad_medida,
           ),
       );
   }
@@ -324,7 +364,9 @@ export class PostgresSocioeconomicoRepository implements SocioeconomicoRepositor
           dimension,
           nivel_riesgo,
           valor,
-          periodo
+          periodo,
+          observacion,
+          unidad_medida
         FROM ${TABLA}
         WHERE codigo_departamento IS NOT NULL
           AND dimension IS NOT NULL
@@ -351,6 +393,8 @@ export class PostgresSocioeconomicoRepository implements SocioeconomicoRepositor
           nivel_riesgo,
           valor,
           periodo,
+          observacion,
+          unidad_medida,
           RANK() OVER (PARTITION BY dimension ORDER BY valor DESC) AS posicion,
           COUNT(*) OVER (PARTITION BY dimension) AS total_departamentos,
           AVG(valor) OVER (PARTITION BY dimension) AS promedio_nacional
@@ -381,7 +425,9 @@ export class PostgresSocioeconomicoRepository implements SocioeconomicoRepositor
         r.total_departamentos,
         r.promedio_nacional,
         pv.valor_periodo_anterior,
-        pv.periodo_anterior
+        pv.periodo_anterior,
+        r.observacion,
+        r.unidad_medida
       FROM ranked r
       LEFT JOIN prev_vals pv ON pv.dimension = r.dimension
       WHERE r.codigo_departamento = LPAD($1, 2, '0')
@@ -405,6 +451,8 @@ export class PostgresSocioeconomicoRepository implements SocioeconomicoRepositor
             ? null
             : Number(toNum(r.valor_periodo_anterior).toFixed(2)),
           r.periodo_anterior,
+          r.observacion,
+          r.unidad_medida,
         ),
     );
   }
@@ -441,6 +489,10 @@ export class PostgresSocioeconomicoRepository implements SocioeconomicoRepositor
     if (filtro.fuentePublicacion) {
       params.push(filtro.fuentePublicacion);
       conds.push(`fuente = $${idx++}`);
+    }
+    if (filtro.seriesEstadisticas && filtro.seriesEstadisticas.length > 0) {
+      params.push(filtro.seriesEstadisticas);
+      conds.push(`serie_estadistica = ANY($${idx++}::text[])`);
     }
 
     return {
