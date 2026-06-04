@@ -1,3 +1,4 @@
+import { ComparativoEstadisticoResultado } from '../entities/comparativo-estadistico.entity';
 import { ComparativoTerritorialResultado } from '../entities/comparativo-territorial.entity';
 import { RankingCandidato } from '../entities/ranking-candidato.entity';
 import { RankingPartido } from '../entities/ranking-partido.entity';
@@ -7,6 +8,7 @@ import { TerritoriosGanadosResultado } from '../entities/territorios-ganados.ent
 import { VotosPorDepartamento } from '../entities/votos-departamento.entity';
 import { VotosPorMunicipio } from '../entities/votos-municipio.entity';
 import { VotosPorPuesto } from '../entities/votos-puesto.entity';
+import { FiltroComparativoEstadistico } from '../value-objects/filtro-comparativo-estadistico.vo';
 import { FiltroComparativoTerritorial } from '../value-objects/filtro-comparativo-territorial.vo';
 import { FiltroElectoral } from '../value-objects/filtro-electoral.vo';
 import { FiltroTerritoriosGanados } from '../value-objects/filtro-territorios-ganados.vo';
@@ -31,6 +33,10 @@ export interface ElectoralRepositoryPort {
   compararTerritorial(
     filtro: FiltroComparativoTerritorial,
   ): Promise<ComparativoTerritorialResultado>;
+
+  compararEstadistico(
+    filtro: FiltroComparativoEstadistico,
+  ): Promise<ComparativoEstadisticoResultado>;
 
   obtenerTerritoriosGanados(filtro: FiltroTerritoriosGanados): Promise<TerritoriosGanadosResultado>;
 }

@@ -2,6 +2,12 @@ import { Inject, Injectable } from '@nestjs/common';
 import { DatabasePort } from '../../../../shared/database/database.port';
 import { DATABASE_PORT } from '../../../../shared/database/database.tokens';
 import {
+  ComparativoEstadisticoResultado,
+  DepartamentoComparativoEstadistico,
+  ItemCandidatoEstadistico,
+  ValorCandidatoDepartamento,
+} from '../../domain/entities/comparativo-estadistico.entity';
+import {
   ComparativoTerritorialResultado,
   GanadorComparativo,
   ItemComparativoTerritorial,
@@ -20,6 +26,7 @@ import { VotosPorDepartamento } from '../../domain/entities/votos-departamento.e
 import { VotosPorMunicipio } from '../../domain/entities/votos-municipio.entity';
 import { VotosPorPuesto } from '../../domain/entities/votos-puesto.entity';
 import { ElectoralRepositoryPort } from '../../domain/ports/electoral.repository.port';
+import { FiltroComparativoEstadistico } from '../../domain/value-objects/filtro-comparativo-estadistico.vo';
 import { FiltroComparativoTerritorial } from '../../domain/value-objects/filtro-comparativo-territorial.vo';
 import { FiltroElectoral } from '../../domain/value-objects/filtro-electoral.vo';
 import { FiltroTerritoriosGanados } from '../../domain/value-objects/filtro-territorios-ganados.vo';
@@ -617,6 +624,153 @@ export class PostgresElectoralRepository implements ElectoralRepositoryPort {
       ),
       territorios,
     );
+  }
+
+  async compararEstadistico(
+    filtro: FiltroComparativoEstadistico,
+  ): Promise<ComparativoEstadisticoResultado> {
+    const candidatos = filtro.candidatos;
+
+    // Construye los parámetros y la condición de identidad de cada candidato.
+    // La identidad real es la tupla (corporación, candidato, partido) porque
+    // codigo_candidato se reinicia por partido. Cada candidato ocupa 3 (ó 2 si
+    // no tiene partido) parámetros; guardamos los índices para reutilizarlos en
+    // las columnas CASE y en el WHERE.
+    const params: unknown[] = [];
+    const condByCand: string[] = candidatos.map((c) => {
+      params.push(c.codigoCorporacion);
+      const corpIdx = params.length;
+      params.push(c.codigo);
+      const codIdx = params.length;
+      let partidoCond: string;
+      if (c.codigoPartido) {
+        params.push(c.codigoPartido);
+        partidoCond = `e.codigo_partido = $${params.length}`;
+      } else {
+        partidoCond = `e.codigo_partido IS NULL`;
+      }
+      return `(e.codigo_corporacion = $${corpIdx} AND e.codigo_candidato = $${codIdx} AND ${partidoCond})`;
+    });
+    const whereCandidatos = condByCand.join(' OR ');
+
+    // Una columna CASE por candidato: suma sus votos en cada departamento.
+    const caseCols = condByCand
+      .map((cond, i) => `COALESCE(SUM(CASE WHEN ${cond} THEN e.total_votos END), 0) AS c${i}`)
+      .join(',\n        ');
+
+    const sqlDeptos = `
+      WITH dep AS (
+        SELECT codigo_departamento, MAX(nombre_departamento) AS nombre_departamento
+        FROM dim_divipole
+        WHERE codigo_departamento IS NOT NULL
+        GROUP BY codigo_departamento
+      )
+      SELECT
+        e.codigo_departamento,
+        COALESCE(dep.nombre_departamento, e.codigo_departamento) AS nombre,
+        ${caseCols}
+      FROM data_election e
+      LEFT JOIN dep ON dep.codigo_departamento = e.codigo_departamento
+      WHERE (${whereCandidatos})
+        AND e.codigo_departamento IS NOT NULL
+      GROUP BY e.codigo_departamento, dep.nombre_departamento
+      ORDER BY COALESCE(SUM(e.total_votos), 0) DESC
+    `;
+
+    // Metadatos + total por candidato en una sola pasada (mismos params base).
+    const sqlMeta = `
+      SELECT
+        e.codigo_corporacion,
+        e.codigo_candidato,
+        e.codigo_partido,
+        MAX(e.nombre_candidato) AS nombre,
+        MAX(e.nombre_partido)   AS nombre_partido,
+        COALESCE(SUM(e.total_votos), 0) AS total
+      FROM data_election e
+      WHERE (${whereCandidatos})
+      GROUP BY e.codigo_corporacion, e.codigo_candidato, e.codigo_partido
+    `;
+
+    const [deptoRows, metaRows] = await Promise.all([
+      this.db.query<Record<string, string | null>>(sqlDeptos, params),
+      this.db.query<{
+        codigo_corporacion: string;
+        codigo_candidato: string;
+        codigo_partido: string | null;
+        nombre: string | null;
+        nombre_partido: string | null;
+        total: string | null;
+      }>(sqlMeta, params),
+    ]);
+
+    // Indexamos los metadatos por la misma clave (corp~codigo~partido).
+    const keyDe = (corp: string, codigo: string, partido: string | null): string =>
+      `${corp}~${codigo}~${partido ?? ''}`;
+    const metaByKey = new Map(
+      metaRows.map((r) => [keyDe(r.codigo_corporacion, r.codigo_candidato, r.codigo_partido), r]),
+    );
+
+    const totalConjunto = candidatos.reduce(
+      (s, c) => s + toNum(metaByKey.get(c.key)?.total ?? null),
+      0,
+    );
+
+    const items: ItemCandidatoEstadistico[] = candidatos.map((c) => {
+      const meta = metaByKey.get(c.key);
+      const total = toNum(meta?.total ?? null);
+      const participacionPct = totalConjunto > 0 ? (total / totalConjunto) * 100 : 0;
+      return new ItemCandidatoEstadistico(
+        c.key,
+        c.codigo,
+        c.codigoPartido,
+        c.codigoCorporacion,
+        meta?.nombre ?? c.codigo,
+        meta?.nombre_partido ?? null,
+        total,
+        Number(participacionPct.toFixed(2)),
+      );
+    });
+
+    const departamentos: DepartamentoComparativoEstadistico[] = deptoRows.map((row) => {
+      const votosPorCand = candidatos.map((c, i) => ({
+        cand: c,
+        votos: toNum(row[`c${i}`] ?? null),
+      }));
+      const totalSeleccionados = votosPorCand.reduce((s, v) => s + v.votos, 0);
+
+      const valores = votosPorCand.map(
+        (v) =>
+          new ValorCandidatoDepartamento(
+            v.cand.key,
+            v.votos,
+            totalSeleccionados > 0 ? Number(((v.votos / totalSeleccionados) * 100).toFixed(2)) : 0,
+          ),
+      );
+
+      // Líder y segundo más votado para la diferencia y la ventaja.
+      const ordenado = [...votosPorCand].sort((a, b) => b.votos - a.votos);
+      const lider = ordenado[0];
+      const segundo = ordenado[1];
+      const votosLider = lider?.votos ?? 0;
+      const votosSegundo = segundo?.votos ?? 0;
+      const diferencia = votosLider - votosSegundo;
+      const ventajaPct = totalSeleccionados > 0 ? (diferencia / totalSeleccionados) * 100 : 0;
+
+      return new DepartamentoComparativoEstadistico(
+        String(row.codigo_departamento),
+        row.nombre ?? String(row.codigo_departamento),
+        valores,
+        totalSeleccionados,
+        totalSeleccionados > 0 && lider ? lider.cand.key : null,
+        diferencia,
+        Number(ventajaPct.toFixed(2)),
+      );
+    });
+
+    // El orden de columnas sigue el ranking global por total de votos.
+    items.sort((a, b) => b.totalVotos - a.totalVotos);
+
+    return new ComparativoEstadisticoResultado(items, departamentos);
   }
 
   async obtenerTerritoriosGanados(
