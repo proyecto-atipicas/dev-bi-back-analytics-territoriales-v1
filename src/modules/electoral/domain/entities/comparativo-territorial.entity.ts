@@ -8,10 +8,18 @@ export class ItemComparativoTerritorial {
     public readonly nombre: string,
     public readonly nombrePartido: string | null,
     public readonly codigoPartido: string | null,
+    /** Corporación a la que pertenece este lado del comparativo. */
+    public readonly codigoCorporacion: string,
     public readonly totalVotos: number,
+    /**
+     * Total de votos de la elección de SU corporación en el ámbito filtrado.
+     * Es por lado: cuando A y B pertenecen a corporaciones distintas cada uno
+     * tiene su propio total de elección.
+     */
+    public readonly totalEleccion: number,
     /** Número de territorios (al nivel actual) donde el ítem obtuvo votos. */
     public readonly totalTerritorios: number,
-    /** % sobre el total de la elección (corporación). */
+    /** % de los votos del ítem sobre el total de la elección de su corporación. */
     public readonly participacionPct: number,
   ) {}
 }
@@ -24,13 +32,19 @@ export class TerritorioComparativo {
     public readonly nombre: string,
     public readonly totalA: number,
     public readonly totalB: number,
-    /** Suma total de votos en el territorio para la corporación filtrada. */
-    public readonly totalEleccion: number,
     public readonly ganador: GanadorComparativo,
     /** |totalA - totalB| en votos absolutos. */
     public readonly diferencia: number,
-    /** Diferencia porcentual respecto al total del territorio (0–100). */
+    /**
+     * Ventaja porcentual del ganador en el territorio: |totalA - totalB| sobre
+     * el total del par (totalA + totalB), en el rango 0–100. Cuando ambos lados
+     * comparten corporación equivale a la brecha relativa entre los dos ítems.
+     */
     public readonly diferenciaPct: number,
+    /** % de los votos del par que corresponden a A en este territorio (0–100). */
+    public readonly participacionAPct: number,
+    /** % de los votos del par que corresponden a B en este territorio (0–100). */
+    public readonly participacionBPct: number,
   ) {}
 }
 
@@ -39,8 +53,6 @@ export class ComparativoTerritorialResultado {
     public readonly nivel: NivelTerritorial,
     public readonly itemA: ItemComparativoTerritorial,
     public readonly itemB: ItemComparativoTerritorial,
-    /** Total de la elección (corporación) en el ámbito filtrado. */
-    public readonly totalEleccion: number,
     public readonly territorios: TerritorioComparativo[],
   ) {}
 }

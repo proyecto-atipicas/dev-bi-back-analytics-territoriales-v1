@@ -21,9 +21,16 @@ export class FiltroComparativoTerritorialQueryDto {
   @IsString()
   codigoB!: string;
 
-  @ApiProperty({ description: 'Código de corporación (contexto obligatorio)' })
+  @ApiProperty({ description: 'Código de corporación del ítem A (obligatorio)' })
   @IsString()
-  codigoCorporacion!: string;
+  codigoCorporacionA!: string;
+
+  @ApiProperty({
+    description:
+      'Código de corporación del ítem B (obligatorio). Puede diferir de A para comparar entre corporaciones/elecciones distintas.',
+  })
+  @IsString()
+  codigoCorporacionB!: string;
 
   @ApiPropertyOptional({ description: 'Código de departamento — drill-down a municipios' })
   @IsOptional()
@@ -56,7 +63,8 @@ export class FiltroComparativoTerritorialQueryDto {
       this.tipo,
       this.codigoA,
       this.codigoB,
-      this.codigoCorporacion,
+      this.codigoCorporacionA,
+      this.codigoCorporacionB,
       this.codigoDepartamento ?? null,
       this.codigoMunicipio ?? null,
       this.codigoPartidoA ?? null,

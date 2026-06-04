@@ -80,13 +80,6 @@ interface ResumenCorporacionRow {
   total_general: string | null;
 }
 
-interface ItemMetaRow {
-  codigo: string;
-  nombre: string | null;
-  codigo_partido: string | null;
-  nombre_partido: string | null;
-}
-
 interface TerritorioComparativoRow {
   codigo_departamento: string;
   codigo_municipio: string | null;
@@ -94,7 +87,6 @@ interface TerritorioComparativoRow {
   nombre: string | null;
   total_a: string | null;
   total_b: string | null;
-  total_eleccion: string | null;
 }
 
 interface SeleccionadoMetaRow {
@@ -328,72 +320,93 @@ export class PostgresElectoralRepository implements ElectoralRepositoryPort {
     const codigoCol = esCandidato ? 'codigo_candidato' : 'codigo_partido';
     const nombreCol = esCandidato ? 'nombre_candidato' : 'nombre_partido';
 
+    // Cada lado del comparativo lleva su propia corporación, de modo que A y B
+    // pueden provenir de elecciones distintas (Senado vs Cámara, procesos
+    // históricos…). Agregamos cada lado de forma independiente bajo su
+    // corporación y los unimos por territorio con un FULL OUTER JOIN, en lugar
+    // de un único pase con `codigo_corporacion = $x`. Por eso ya no existe un
+    // "total de elección" común: las métricas porcentuales son head-to-head
+    // (sobre el par A + B).
+    //
     // Para candidatos la identidad real es la tupla (codigo_candidato,
-    // codigo_partido) — el código se reinicia por partido. Construimos
-    // condiciones específicas para A y B en lugar de un IN ($1, $2).
+    // codigo_partido) — el código se reinicia por partido.
+    // Parámetros base: $1=codigoA, $2=codigoB, $3=corpA, $4=corpB
+    // y, para candidato, $5=codigoPartidoA, $6=codigoPartidoB.
     const condA = esCandidato
-      ? `(e.codigo_candidato = $1 AND e.codigo_partido = $4)`
+      ? `e.codigo_candidato = $1 AND e.codigo_partido = $5`
       : `e.codigo_partido = $1`;
     const condB = esCandidato
-      ? `(e.codigo_candidato = $2 AND e.codigo_partido = $5)`
+      ? `e.codigo_candidato = $2 AND e.codigo_partido = $6`
       : `e.codigo_partido = $2`;
-    const condEnAB = `(${condA} OR ${condB})`;
 
-    // Clave de mapa para distinguir A de B cuando ambos comparten codigo
-    // pero pertenecen a partidos distintos (caso real para candidatos).
-    const claveMeta = (codigo: string, codigoPartido: string | null): string =>
-      esCandidato ? `${codigo}|${codigoPartido ?? ''}` : codigo;
-
-    // 1) Metadatos de los ítems (nombre + partido asociado para candidatos).
-    const metaParams: unknown[] = [filtro.codigoA, filtro.codigoB, filtro.codigoCorporacion];
+    const baseParams: unknown[] = [
+      filtro.codigoA,
+      filtro.codigoB,
+      filtro.codigoCorporacionA,
+      filtro.codigoCorporacionB,
+    ];
     if (esCandidato) {
-      metaParams.push(filtro.codigoPartidoA, filtro.codigoPartidoB);
+      baseParams.push(filtro.codigoPartidoA, filtro.codigoPartidoB);
     }
-    const metaSql = `
-      SELECT
-        e.${codigoCol}              AS codigo,
-        MAX(e.${nombreCol})         AS nombre,
-        MAX(e.codigo_partido)       AS codigo_partido,
-        MAX(e.nombre_partido)       AS nombre_partido
+
+    // Filtros geográficos comunes a ambos lados (se anexan tras los base y se
+    // reutilizan en ambos CTE con los mismos índices $).
+    const geoConds: string[] = [];
+    const geoParams: unknown[] = [];
+    const idxBase = baseParams.length;
+    if (filtro.codigoDepartamento) {
+      geoParams.push(filtro.codigoDepartamento);
+      geoConds.push(`e.codigo_departamento = $${idxBase + geoParams.length}`);
+    }
+    if (filtro.codigoMunicipio) {
+      geoParams.push(filtro.codigoMunicipio);
+      geoConds.push(`e.codigo_municipio = $${idxBase + geoParams.length}`);
+    }
+
+    // Nivel + claves de agrupación/join según la granularidad geográfica.
+    let nivel: NivelTerritorial;
+    let keyCols: string[];
+    if (filtro.codigoMunicipio) {
+      nivel = 'puesto';
+      keyCols = ['codigo_departamento', 'codigo_municipio', 'codigo_puesto'];
+      geoConds.push('e.codigo_puesto IS NOT NULL');
+    } else if (filtro.codigoDepartamento) {
+      nivel = 'municipio';
+      keyCols = ['codigo_departamento', 'codigo_municipio'];
+    } else {
+      nivel = 'departamento';
+      keyCols = ['codigo_departamento'];
+    }
+
+    const selKeys = keyCols.map((c) => `e.${c}`).join(', ');
+    const groupBy = selKeys;
+    const geoWhere = geoConds.length ? ` AND ${geoConds.join(' AND ')}` : '';
+
+    // CTE de cada lado bajo su propia corporación.
+    const cteA = `
+      SELECT ${selKeys}, COALESCE(SUM(e.total_votos), 0) AS total
       FROM data_election e
-      WHERE e.codigo_corporacion = $3
-        AND e.${codigoCol} IS NOT NULL
-        AND ${condEnAB}
-      GROUP BY e.${codigoCol}${esCandidato ? ', e.codigo_partido' : ''}
+      WHERE e.codigo_corporacion = $3 AND (${condA})${geoWhere}
+      GROUP BY ${groupBy}
+    `;
+    const cteB = `
+      SELECT ${selKeys}, COALESCE(SUM(e.total_votos), 0) AS total
+      FROM data_election e
+      WHERE e.codigo_corporacion = $4 AND (${condB})${geoWhere}
+      GROUP BY ${groupBy}
     `;
 
-    // 2) Resultado por territorio + total elección. Granularidad por filtros.
-    // Mantenemos los mismos índices $1..$5 para reutilizar los condA/condB.
-    const params: unknown[] = [filtro.codigoA, filtro.codigoB, filtro.codigoCorporacion];
-    if (esCandidato) {
-      params.push(filtro.codigoPartidoA, filtro.codigoPartidoB);
-    }
-    const conds: string[] = [`e.codigo_corporacion = $3`];
-    if (filtro.codigoDepartamento) {
-      params.push(filtro.codigoDepartamento);
-      conds.push(`e.codigo_departamento = $${params.length}`);
-    }
-    if (filtro.codigoMunicipio) {
-      params.push(filtro.codigoMunicipio);
-      conds.push(`e.codigo_municipio = $${params.length}`);
-    }
+    // FULL OUTER JOIN: conserva territorios donde sólo uno de los dos obtuvo
+    // votos. Las claves se coalescan lado a lado.
+    const joinOn = keyCols.map((c) => `a.${c} = b.${c}`).join(' AND ');
+    const coalesced = keyCols.map((c) => `COALESCE(a.${c}, b.${c}) AS ${c}`).join(', ');
 
-    let nivel: NivelTerritorial;
-    let groupCols: string;
-    let selectCols: string;
-    let joinClause = '';
-
-    if (filtro.codigoMunicipio) {
-      // Drill-down a puestos
-      nivel = 'puesto';
-      groupCols = 'e.codigo_departamento, e.codigo_municipio, e.codigo_puesto';
-      selectCols = `
-        e.codigo_departamento,
-        e.codigo_municipio,
-        e.codigo_puesto,
-        COALESCE(MAX(p.nombre_puesto), e.codigo_puesto) AS nombre
-      `;
-      joinClause = `
+    // Join de nombres territoriales (independiente de la corporación).
+    let nombreSelect: string;
+    let nombreJoin: string;
+    if (nivel === 'puesto') {
+      nombreSelect = `COALESCE(p.nombre_puesto, j.codigo_puesto) AS nombre`;
+      nombreJoin = `
         LEFT JOIN (
           SELECT codigo_departamento, codigo_municipio, codigo_puesto,
                  MAX(nombre_puesto) AS nombre_puesto
@@ -401,22 +414,13 @@ export class PostgresElectoralRepository implements ElectoralRepositoryPort {
           WHERE codigo_puesto IS NOT NULL
           GROUP BY codigo_departamento, codigo_municipio, codigo_puesto
         ) p
-          ON p.codigo_departamento = e.codigo_departamento
-         AND p.codigo_municipio    = e.codigo_municipio
-         AND p.codigo_puesto       = e.codigo_puesto
+          ON p.codigo_departamento = j.codigo_departamento
+         AND p.codigo_municipio    = j.codigo_municipio
+         AND p.codigo_puesto       = j.codigo_puesto
       `;
-      conds.push('e.codigo_puesto IS NOT NULL');
-    } else if (filtro.codigoDepartamento) {
-      // Drill-down a municipios
-      nivel = 'municipio';
-      groupCols = 'e.codigo_departamento, e.codigo_municipio';
-      selectCols = `
-        e.codigo_departamento,
-        e.codigo_municipio,
-        NULL::text AS codigo_puesto,
-        COALESCE(MAX(m.nombre_municipio), e.codigo_municipio) AS nombre
-      `;
-      joinClause = `
+    } else if (nivel === 'municipio') {
+      nombreSelect = `COALESCE(m.nombre_municipio, j.codigo_municipio) AS nombre`;
+      nombreJoin = `
         LEFT JOIN (
           SELECT codigo_departamento, codigo_municipio,
                  MAX(nombre_municipio) AS nombre_municipio
@@ -424,65 +428,119 @@ export class PostgresElectoralRepository implements ElectoralRepositoryPort {
           WHERE codigo_municipio IS NOT NULL
           GROUP BY codigo_departamento, codigo_municipio
         ) m
-          ON m.codigo_departamento = e.codigo_departamento
-         AND m.codigo_municipio    = e.codigo_municipio
+          ON m.codigo_departamento = j.codigo_departamento
+         AND m.codigo_municipio    = j.codigo_municipio
       `;
     } else {
-      // Vista nacional → por departamento
-      nivel = 'departamento';
-      groupCols = 'e.codigo_departamento';
-      selectCols = `
-        e.codigo_departamento,
-        NULL::text AS codigo_municipio,
-        NULL::text AS codigo_puesto,
-        COALESCE(MAX(d.nombre_departamento), e.codigo_departamento) AS nombre
-      `;
-      joinClause = `
+      nombreSelect = `COALESCE(d.nombre_departamento, j.codigo_departamento) AS nombre`;
+      nombreJoin = `
         LEFT JOIN (
           SELECT codigo_departamento, MAX(nombre_departamento) AS nombre_departamento
           FROM dim_divipole
           WHERE codigo_departamento IS NOT NULL
           GROUP BY codigo_departamento
-        ) d ON d.codigo_departamento = e.codigo_departamento
+        ) d ON d.codigo_departamento = j.codigo_departamento
       `;
     }
 
-    const sql = `
-      SELECT
-        ${selectCols},
-        COALESCE(SUM(CASE WHEN ${condA} THEN e.total_votos END), 0) AS total_a,
-        COALESCE(SUM(CASE WHEN ${condB} THEN e.total_votos END), 0) AS total_b,
-        COALESCE(SUM(e.total_votos), 0) AS total_eleccion
-      FROM data_election e
-      ${joinClause}
-      WHERE ${conds.join(' AND ')}
-      GROUP BY ${groupCols}
-      HAVING COALESCE(SUM(CASE WHEN ${condEnAB} THEN e.total_votos END), 0) > 0
-      ORDER BY total_eleccion DESC
-    `;
+    // El SELECT final siempre expone (codigo_departamento, codigo_municipio,
+    // codigo_puesto); los niveles superiores rellenan con NULL.
+    const extraNullCols =
+      nivel === 'puesto'
+        ? ''
+        : nivel === 'municipio'
+          ? 'NULL::text AS codigo_puesto,'
+          : 'NULL::text AS codigo_municipio, NULL::text AS codigo_puesto,';
 
-    // Las dos consultas son independientes — corren en paralelo para reducir
-    // latencia. La metadata sólo cruza con los códigos A/B; el desglose
-    // territorial recorre los filtros geográficos.
-    const [metaRows, rows] = await Promise.all([
-      this.db.query<ItemMetaRow>(metaSql, metaParams),
+    const sql = `
+      WITH a AS (${cteA}),
+           b AS (${cteB}),
+           j AS (
+             SELECT ${coalesced},
+                    COALESCE(a.total, 0) AS total_a,
+                    COALESCE(b.total, 0) AS total_b
+             FROM a FULL OUTER JOIN b ON ${joinOn}
+           )
+      SELECT
+        ${keyCols.map((c) => `j.${c}`).join(', ')},
+        ${extraNullCols}
+        ${nombreSelect},
+        j.total_a,
+        j.total_b
+      FROM j
+      ${nombreJoin}
+      WHERE (j.total_a + j.total_b) > 0
+      ORDER BY (j.total_a + j.total_b) DESC
+    `;
+    const params = [...baseParams, ...geoParams];
+
+    // Total de la elección de CADA lado: votos totales de su corporación en el
+    // ámbito geográfico filtrado. Es por lado porque las corporaciones pueden
+    // diferir; alimenta el "Total elección" y el "% elección" de cada tarjeta.
+    const elecGeoConds: string[] = [];
+    const elecGeoParams: unknown[] = [];
+    if (filtro.codigoDepartamento) {
+      elecGeoParams.push(filtro.codigoDepartamento);
+      elecGeoConds.push(`e.codigo_departamento = $${1 + elecGeoParams.length}`);
+    }
+    if (filtro.codigoMunicipio) {
+      elecGeoParams.push(filtro.codigoMunicipio);
+      elecGeoConds.push(`e.codigo_municipio = $${1 + elecGeoParams.length}`);
+    }
+    if (nivel === 'puesto') {
+      elecGeoConds.push('e.codigo_puesto IS NOT NULL');
+    }
+    const elecSql = `
+      SELECT COALESCE(SUM(e.total_votos), 0) AS total
+      FROM data_election e
+      WHERE e.codigo_corporacion = $1${elecGeoConds.length ? ` AND ${elecGeoConds.join(' AND ')}` : ''}
+    `;
+    const elecParamsA = [filtro.codigoCorporacionA, ...elecGeoParams];
+    const elecParamsB = [filtro.codigoCorporacionB, ...elecGeoParams];
+
+    // Metadatos de cada ítem (nombre + partido) bajo su propia corporación.
+    const metaSqlFor = (corpIdx: number, codigoIdx: number, partidoIdx: number): string => `
+      SELECT
+        MAX(e.${nombreCol})   AS nombre,
+        MAX(e.codigo_partido) AS codigo_partido,
+        MAX(e.nombre_partido) AS nombre_partido
+      FROM data_election e
+      WHERE e.codigo_corporacion = $${corpIdx}
+        AND e.${codigoCol} IS NOT NULL
+        AND (${esCandidato ? `e.codigo_candidato = $${codigoIdx} AND e.codigo_partido = $${partidoIdx}` : `e.codigo_partido = $${codigoIdx}`})
+    `;
+    const metaParamsA: unknown[] = esCandidato
+      ? [filtro.codigoCorporacionA, filtro.codigoA, filtro.codigoPartidoA]
+      : [filtro.codigoCorporacionA, filtro.codigoA];
+    const metaParamsB: unknown[] = esCandidato
+      ? [filtro.codigoCorporacionB, filtro.codigoB, filtro.codigoPartidoB]
+      : [filtro.codigoCorporacionB, filtro.codigoB];
+
+    // Todas las consultas son independientes — corren en paralelo.
+    const [metaARows, metaBRows, elecARows, elecBRows, rows] = await Promise.all([
+      this.db.query<SeleccionadoMetaRow>(metaSqlFor(1, 2, 3), metaParamsA),
+      this.db.query<SeleccionadoMetaRow>(metaSqlFor(1, 2, 3), metaParamsB),
+      this.db.query<{ total: string | null }>(elecSql, elecParamsA),
+      this.db.query<{ total: string | null }>(elecSql, elecParamsB),
       this.db.query<TerritorioComparativoRow>(sql, params),
     ]);
-    const metaMap = new Map<string, ItemMetaRow>();
-    for (const r of metaRows) {
-      metaMap.set(claveMeta(r.codigo, r.codigo_partido), r);
-    }
+    const metaA = metaARows[0];
+    const metaB = metaBRows[0];
+    const totalEleccionA = toNum(elecARows[0]?.total);
+    const totalEleccionB = toNum(elecBRows[0]?.total);
 
     const territorios: TerritorioComparativo[] = rows.map((r) => {
       const totalA = toNum(r.total_a);
       const totalB = toNum(r.total_b);
-      const totalEleccion = toNum(r.total_eleccion);
+      const par = totalA + totalB;
       const diferencia = Math.abs(totalA - totalB);
       let ganador: GanadorComparativo;
       if (totalA > totalB) ganador = 'A';
       else if (totalB > totalA) ganador = 'B';
       else ganador = 'EMPATE';
-      const diferenciaPct = totalEleccion > 0 ? (diferencia / totalEleccion) * 100 : 0;
+      const diferenciaPct = par > 0 ? (diferencia / par) * 100 : 0;
+      const participacionAPct = par > 0 ? (totalA / par) * 100 : 0;
+      const participacionBPct = par > 0 ? (totalB / par) * 100 : 0;
       return new TerritorioComparativo(
         r.codigo_departamento,
         r.codigo_municipio,
@@ -490,28 +548,32 @@ export class PostgresElectoralRepository implements ElectoralRepositoryPort {
         r.nombre ?? '',
         totalA,
         totalB,
-        totalEleccion,
         ganador,
         diferencia,
         Number(diferenciaPct.toFixed(2)),
+        Number(participacionAPct.toFixed(2)),
+        Number(participacionBPct.toFixed(2)),
       );
     });
 
     // Totales agregados a partir de los territorios.
     const totalA = territorios.reduce((s, t) => s + t.totalA, 0);
     const totalB = territorios.reduce((s, t) => s + t.totalB, 0);
-    const totalEleccion = territorios.reduce((s, t) => s + t.totalEleccion, 0);
     const totalTerritoriosA = territorios.filter((t) => t.totalA > 0).length;
     const totalTerritoriosB = territorios.filter((t) => t.totalB > 0).length;
 
     const buildItem = (
       codigo: string,
       codigoPartidoTupla: string | null,
+      codigoCorporacion: string,
       total: number,
+      totalEleccion: number,
       totalTerritorios: number,
+      meta: SeleccionadoMetaRow | undefined,
     ): ItemComparativoTerritorial => {
-      const meta = metaMap.get(claveMeta(codigo, codigoPartidoTupla));
       const nombre = meta?.nombre ?? codigo;
+      // % sobre el total de la elección de SU corporación (bien definido por
+      // lado aun cuando A y B pertenezcan a corporaciones distintas).
       const participacionPct = totalEleccion > 0 ? (total / totalEleccion) * 100 : 0;
       // Para tipo=partido, el codigo_partido del ítem es el mismo que el código;
       // para candidato, viene en el filtro (clave compuesta) y se prefiere sobre
@@ -525,7 +587,9 @@ export class PostgresElectoralRepository implements ElectoralRepositoryPort {
         nombre,
         nombrePartido,
         codigoPartido,
+        codigoCorporacion,
         total,
+        totalEleccion,
         totalTerritorios,
         Number(participacionPct.toFixed(2)),
       );
@@ -533,9 +597,24 @@ export class PostgresElectoralRepository implements ElectoralRepositoryPort {
 
     return new ComparativoTerritorialResultado(
       nivel,
-      buildItem(filtro.codigoA, filtro.codigoPartidoA, totalA, totalTerritoriosA),
-      buildItem(filtro.codigoB, filtro.codigoPartidoB, totalB, totalTerritoriosB),
-      totalEleccion,
+      buildItem(
+        filtro.codigoA,
+        filtro.codigoPartidoA,
+        filtro.codigoCorporacionA,
+        totalA,
+        totalEleccionA,
+        totalTerritoriosA,
+        metaA,
+      ),
+      buildItem(
+        filtro.codigoB,
+        filtro.codigoPartidoB,
+        filtro.codigoCorporacionB,
+        totalB,
+        totalEleccionB,
+        totalTerritoriosB,
+        metaB,
+      ),
       territorios,
     );
   }

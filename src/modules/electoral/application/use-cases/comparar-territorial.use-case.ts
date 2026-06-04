@@ -11,8 +11,8 @@ export class CompararTerritorialUseCase {
   constructor(@Inject(ELECTORAL_REPOSITORY) private readonly repository: ElectoralRepositoryPort) {}
 
   execute(filtro: FiltroComparativoTerritorial): Promise<ComparativoTerritorialResultado> {
-    if (!filtro.codigoCorporacion) {
-      throw new BadRequestException('codigoCorporacion es obligatorio');
+    if (!filtro.codigoCorporacionA || !filtro.codigoCorporacionB) {
+      throw new BadRequestException('codigoCorporacionA y codigoCorporacionB son obligatorios');
     }
     if (!filtro.codigoA || !filtro.codigoB) {
       throw new BadRequestException('codigoA y codigoB son obligatorios');
@@ -24,6 +24,12 @@ export class CompararTerritorialUseCase {
       throw new BadRequestException('codigoMunicipio requiere codigoDepartamento');
     }
 
+    // Cuando las corporaciones difieren, A y B viven en elecciones distintas:
+    // incluso un mismo código/partido es una comparación válida (ej. el mismo
+    // candidato en dos procesos). Sólo bloqueamos el "consigo mismo" cuando
+    // todo coincide dentro de la misma corporación.
+    const mismaCorporacion = filtro.codigoCorporacionA === filtro.codigoCorporacionB;
+
     if (filtro.tipo === 'candidato') {
       // codigo_candidato se reinicia por partido — la clave única es la
       // tupla (codigo_candidato, codigo_partido). Sin partido, mezclaríamos
@@ -33,14 +39,20 @@ export class CompararTerritorialUseCase {
           'codigoPartidoA y codigoPartidoB son obligatorios cuando tipo=candidato',
         );
       }
-      if (filtro.codigoA === filtro.codigoB && filtro.codigoPartidoA === filtro.codigoPartidoB) {
+      if (
+        mismaCorporacion &&
+        filtro.codigoA === filtro.codigoB &&
+        filtro.codigoPartidoA === filtro.codigoPartidoB
+      ) {
         throw new BadRequestException(
-          'No se puede comparar el mismo candidato consigo mismo (codigo + codigoPartido idénticos)',
+          'No se puede comparar el mismo candidato consigo mismo (corporación + codigo + codigoPartido idénticos)',
         );
       }
     } else {
-      if (filtro.codigoA === filtro.codigoB) {
-        throw new BadRequestException('codigoA y codigoB no pueden ser iguales');
+      if (mismaCorporacion && filtro.codigoA === filtro.codigoB) {
+        throw new BadRequestException(
+          'codigoA y codigoB no pueden ser iguales dentro de la misma corporación',
+        );
       }
     }
 

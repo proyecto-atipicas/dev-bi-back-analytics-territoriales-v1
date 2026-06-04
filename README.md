@@ -130,7 +130,7 @@ Filtros transversales: `codigoCorporacion`, `codigoDepartamento`, `codigoMunicip
 | GET | `/electoral/ranking-partidos?limite=20` | Top partidos |
 | GET | `/electoral/ranking-candidatos?limite=50` | Top candidatos |
 | GET | `/electoral/resumen-corporaciones` | Tarjetas resumen por corporación |
-| GET | `/electoral/comparativo/territorial?tipo=partido\|candidato&codigoA=...&codigoB=...&codigoCorporacion=...` | Comparativo pairwise — totales por A y B, ítems con metadatos y desglose por territorio. Granularidad adaptativa: depto sin filtro → muni con depto → puesto con muni. |
+| GET | `/electoral/comparativo/territorial?tipo=partido\|candidato&codigoA=...&codigoB=...&codigoCorporacionA=...&codigoCorporacionB=...` | Comparativo pairwise con **corporación por lado** (pueden diferir → comparación entre corporaciones/elecciones distintas). Agrega cada lado bajo su corporación y los une por territorio (`FULL OUTER JOIN`). Cada ítem expone su `totalEleccion` y `participacionPct` (sobre el total de su corporación); las métricas por territorio son head-to-head sobre el par A+B. Granularidad adaptativa: depto sin filtro → muni con depto → puesto con muni. |
 
 ### Socioeconómico (`data_socioeconómica`)
 Filtro opcional: `fuentePublicacion=<DNP TerriData|Externado e Indepaz|Mapa de Riesgos|...>` para acotar a una fuente concreta dentro de la tabla.

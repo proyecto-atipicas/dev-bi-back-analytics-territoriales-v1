@@ -7,6 +7,12 @@ export type TipoComparacionTerritorial = 'partido' | 'candidato';
  * - con codigoDepartamento → agregado por municipio
  * - con codigoMunicipio    → agregado por puesto
  *
+ * Cada lado lleva **su propia corporación** (`codigoCorporacionA` /
+ * `codigoCorporacionB`). Esto habilita comparaciones entre elecciones de
+ * corporaciones distintas (ej. Senado vs Cámara) o entre procesos históricos
+ * del mismo candidato. Cuando ambas corporaciones coinciden, el comparativo se
+ * comporta como antes (un único universo electoral).
+ *
  * Cuando `tipo='candidato'`, `codigo_candidato` NO es único globalmente — se
  * reinicia por partido — así que se requiere también el `codigoPartido` para
  * desambiguar y evitar mezclar votos de candidatos homónimos en partidos
@@ -17,7 +23,8 @@ export class FiltroComparativoTerritorial {
     public readonly tipo: TipoComparacionTerritorial,
     public readonly codigoA: string,
     public readonly codigoB: string,
-    public readonly codigoCorporacion: string,
+    public readonly codigoCorporacionA: string,
+    public readonly codigoCorporacionB: string,
     public readonly codigoDepartamento: string | null = null,
     public readonly codigoMunicipio: string | null = null,
     /** Partido del candidato A. Obligatorio cuando tipo='candidato'. */

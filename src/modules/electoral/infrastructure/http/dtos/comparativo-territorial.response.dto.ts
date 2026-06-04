@@ -12,9 +12,13 @@ export class ItemComparativoTerritorialDto {
   @ApiProperty() nombre!: string;
   @ApiProperty({ nullable: true }) nombrePartido!: string | null;
   @ApiProperty({ nullable: true }) codigoPartido!: string | null;
+  @ApiProperty({ description: 'Corporación del lado del comparativo' })
+  codigoCorporacion!: string;
   @ApiProperty() totalVotos!: number;
+  @ApiProperty({ description: 'Total de votos de la elección de su corporación en el ámbito' })
+  totalEleccion!: number;
   @ApiProperty() totalTerritorios!: number;
-  @ApiProperty({ description: 'Porcentaje 0-100 sobre el total de la elección' })
+  @ApiProperty({ description: 'Porcentaje 0-100 sobre el total de la elección de su corporación' })
   participacionPct!: number;
 
   static fromDomain(i: ItemComparativoTerritorial): ItemComparativoTerritorialDto {
@@ -23,7 +27,9 @@ export class ItemComparativoTerritorialDto {
       nombre: i.nombre,
       nombrePartido: i.nombrePartido,
       codigoPartido: i.codigoPartido,
+      codigoCorporacion: i.codigoCorporacion,
       totalVotos: i.totalVotos,
+      totalEleccion: i.totalEleccion,
       totalTerritorios: i.totalTerritorios,
       participacionPct: i.participacionPct,
     };
@@ -37,10 +43,14 @@ export class TerritorioComparativoDto {
   @ApiProperty() nombre!: string;
   @ApiProperty() totalA!: number;
   @ApiProperty() totalB!: number;
-  @ApiProperty() totalEleccion!: number;
   @ApiProperty({ enum: ['A', 'B', 'EMPATE'] }) ganador!: GanadorComparativo;
   @ApiProperty() diferencia!: number;
-  @ApiProperty() diferenciaPct!: number;
+  @ApiProperty({ description: 'Ventaja porcentual del ganador sobre el par (0-100)' })
+  diferenciaPct!: number;
+  @ApiProperty({ description: '% de los votos del par que corresponden a A (0-100)' })
+  participacionAPct!: number;
+  @ApiProperty({ description: '% de los votos del par que corresponden a B (0-100)' })
+  participacionBPct!: number;
 
   static fromDomain(t: TerritorioComparativo): TerritorioComparativoDto {
     return {
@@ -50,10 +60,11 @@ export class TerritorioComparativoDto {
       nombre: t.nombre,
       totalA: t.totalA,
       totalB: t.totalB,
-      totalEleccion: t.totalEleccion,
       ganador: t.ganador,
       diferencia: t.diferencia,
       diferenciaPct: t.diferenciaPct,
+      participacionAPct: t.participacionAPct,
+      participacionBPct: t.participacionBPct,
     };
   }
 }
@@ -68,8 +79,6 @@ export class ComparativoTerritorialResponseDto {
   @ApiProperty({ type: ItemComparativoTerritorialDto })
   itemB!: ItemComparativoTerritorialDto;
 
-  @ApiProperty() totalEleccion!: number;
-
   @ApiProperty({ type: TerritorioComparativoDto, isArray: true })
   territorios!: TerritorioComparativoDto[];
 
@@ -78,7 +87,6 @@ export class ComparativoTerritorialResponseDto {
       nivel: r.nivel,
       itemA: ItemComparativoTerritorialDto.fromDomain(r.itemA),
       itemB: ItemComparativoTerritorialDto.fromDomain(r.itemB),
-      totalEleccion: r.totalEleccion,
       territorios: r.territorios.map(TerritorioComparativoDto.fromDomain),
     };
   }
